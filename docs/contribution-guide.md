@@ -1,0 +1,41 @@
+# Contribution Guide
+
+Samsung TV Remote is a native macOS application written in Rust. This guide
+defines the canonical local Cargo workflow once `Cargo.toml` is committed.
+
+## Setup and development
+
+Use the Rust toolchain selected by the repository (for example,
+`rust-toolchain.toml` when present). Build and launch the debug application
+with:
+
+```sh
+cargo run
+```
+
+Run individual tests while iterating with `cargo test <name>`. Do not require a
+physical TV or a local network for automated tests; use deterministic fakes for
+protocol and pairing boundaries.
+
+## Required validation
+
+Before opening a pull request, run the full checks from the repository root:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+Format with `cargo fmt` when the formatting check fails. Address Clippy
+warnings rather than suppressing them without a documented reason. `cargo test`
+runs the package test suite; add or update tests for each behavior change and
+bug fix.
+
+## Pull requests
+
+Keep a pull request focused and explain the user-visible effect, relevant
+protocol or UI decisions, and every validation command run. Include a
+screenshot for macOS UI changes and sanitized logs for connection or pairing
+changes. Never commit TV pairing tokens, device IP addresses, credentials, or
+other local-network details.

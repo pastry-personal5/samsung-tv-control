@@ -9,20 +9,12 @@ top-level configuration. Put application code in `src/`, integration tests in
 `tests/`, and bundled resources in `assets/`. Keep network protocol, device
 discovery, and macOS UI responsibilities in focused modules.
 
-## Development Commands
+## Development Workflow
 
-No Cargo manifest is committed yet. When the Rust application is added, document
-the canonical commands in `README.md` and keep the normal Cargo workflow:
-
-```sh
-cargo run           # build and launch the debug app
-cargo test          # run unit and integration tests
-cargo fmt --check   # verify Rust formatting
-cargo clippy -- -D warnings  # reject lint warnings
-```
-
-Do not claim a command works until its configuration is committed and it has
-been run successfully.
+The canonical Cargo commands and local validation workflow live in
+[`docs/contribution-guide.md`](docs/contribution-guide.md). Do not claim a
+command works until its configuration is committed and it has been run
+successfully.
 
 ## Coding Style and Naming
 
@@ -38,8 +30,7 @@ Add tests with new behavior and bug fixes. Mirror the source layout under
 `tests/` and use test names that state the expected result, such as
 `connects_when_tv_accepts_pairing`. Cover protocol parsing, pairing failures,
 and network-boundary behavior with deterministic fakes rather than real TVs.
-Run `cargo test`, `cargo fmt --check`, and `cargo clippy -- -D warnings` before
-opening a pull request.
+Run the checks in the contribution guide before opening a pull request.
 
 ## Commits and Pull Requests
 
