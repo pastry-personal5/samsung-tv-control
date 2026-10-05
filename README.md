@@ -15,6 +15,11 @@ The [software architecture](docs/architecture.md) defines the selected UI and
 runtime design. The [planned repository architecture](docs/planned-repository-architecture.md)
 maps it to module responsibilities.
 
+The current UX plan defines [canonical terms](docs/ux-term.md), the
+[information architecture](docs/planned-information-architecture.md), and the
+[planned GUI](docs/ux-gui.md). These are design documents; the GUI has not yet
+been implemented.
+
 ## Development
 
 See the [contribution guide](docs/contribution-guide.md) for the Cargo

@@ -1,9 +1,33 @@
 # Phase 1 Changelog
 
-Status: Archived
+Status: Active
 
 ## Entries
 
+- 2026-10-05 — Owner clarified first launch: show the main app window only;
+  do not add onboarding, a setup prompt, or automatically open Settings. If no
+  TV is selected, control availability remains undecided. TV discovery remains
+  available from TV settings when the user opens it. Updated the
+  [information architecture](../planned-information-architecture.md),
+  [GUI plan](../ux-gui.md), and software architecture.
+- 2026-10-05 — Owner added a Main Toolbar at the bottom of the Sidebar with a
+  Settings button that opens a Settings Window. TV is first in the Settings
+  Sidebar. TV settings lists Saved TVs and Discovered TVs in a radio-button
+  table above Discover TVs; hide the table when empty and center the button,
+  preselect the table's only row, and require a choice when multiple TVs are
+  available. A Discovered TV becomes
+  active and is saved after TV Identity Confirmation and pairing. At launch,
+  resume the selected Saved TV and attempt to reconnect. Updated the
+  [UX glossary](../ux-term.md),
+  [information architecture](../planned-information-architecture.md), and
+  [GUI plan](../ux-gui.md).
+- 2026-10-05 — Owner started P1-M3 to define canonical UX terms, information
+  architecture, and the planned GUI before implementation. The app opens to
+  the Remote View; remaining Sidebar contents are TBD. The volume slider is
+  interactive when the selected TV supports exact-level control. See the
+  [UX glossary](../ux-term.md),
+  [information architecture](../planned-information-architecture.md), and
+  [GUI plan](../ux-gui.md).
 - 2026-10-05 — Owner added local-network TV discovery to the first usable
   app. Keep manual host entry as a fallback; choose and validate the discovery
   mechanism against the target TV. Updated the [software architecture](../architecture.md)

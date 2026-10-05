@@ -29,11 +29,11 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 │   │   ├── mod.rs
 │   │   └── iced/
 │   │       ├── mod.rs
-│   │       ├── app.rs            # Iced application, Task and Subscription wiring
+│   │       ├── app.rs            # Iced application and main/settings window wiring
 │   │       ├── message.rs        # UI and effect-result messages
-│   │       ├── view_model.rs     # UI state projection and update logic
+│   │       ├── view_model.rs     # Remote and settings UI state projection
 │   │       ├── input.rs          # keyboard/pointer to command mapping
-│   │       └── view.rs           # widgets and layout
+│   │       └── view.rs           # remote controls and settings window layout
 │   └── infrastructure/
 │       ├── mod.rs
 │       ├── samsung/
@@ -81,7 +81,7 @@ The command boundary is semantic. For example, the ViewModel emits `Command::Sen
 
 ## Runtime ownership
 
-`main.rs` builds the adapters and application services, then starts an Iced regular window. The Iced adapter dispatches ViewModel commands in message order. The services own connection policy and expose sanitized events. One session owner for the active TV owns the WebSocket, serializes writes through a bounded queue, and emits events; the Iced subscription observes that stream. Fast controls enter the queue synchronously without blocking the UI; Iced tasks await longer operations and map their results to presentation messages. Dropping or recreating the UI subscription must not duplicate the network connection. A newly attached observer receives a consistent state snapshot and subsequent sequenced events; a missed event triggers resynchronization.
+`main.rs` builds the adapters and application services, restores the most recently selected saved TV when one exists, then always starts the main Iced window in the Remote View. Do not auto-open Settings or show onboarding on first launch. The Main Toolbar opens a separate Settings Window. Its TV settings page lists saved and discovered TVs in a radio-button TV Selection Table above Discover TVs, hiding the table when it has no rows. A single row is preselected; multiple rows require a choice when none is active. Selecting a discovered candidate requires TV Identity Confirmation and pairing before saving it as the active TV. Remote View content and control availability without a Selected TV remain TBD. The Iced adapter dispatches ViewModel commands in message order. The services own connection policy and expose sanitized events. One session owner for the active TV owns the WebSocket, serializes writes through a bounded queue, and emits events; the Iced subscription observes that stream. Fast controls enter the queue synchronously without blocking the UI; Iced tasks await longer operations and map their results to presentation messages. Dropping or recreating the UI subscription must not duplicate the network connection. A newly attached observer receives a consistent state snapshot and subsequent sequenced events; a missed event triggers resynchronization.
 
 Device discovery, wake retries, and connection attempts have explicit cancellation and time limits. The application layer decides when they stop; adapters implement the I/O. Operation IDs prevent results from a previous selection or connection from changing the current ViewModel. The UI renders states such as pairing pending, connected, reconnecting, re-pair required, text input available, and wake timeout without inferring success from a socket write alone.
 
@@ -95,4 +95,4 @@ Device discovery, wake retries, and connection attempts have explicit cancellati
 - Mirror important source boundaries under `tests/`. Use fake ports and synthetic frames; no automated test should require a TV or local network.
 - Do not commit pairing tokens, real device identifiers, IP or MAC addresses, or local-network logs. Store secrets in Keychain and keep preferences separate.
 
-The current `Cargo.toml` and `src/main.rs` are a minimal starting point. Dependencies and bundle configuration should be selected when their implementation is ready to be validated. The add-device flow includes network discovery and manual host entry; the discovery mechanism should be selected after testing the TV's advertisements. KU75UA8090FXKR is the initial hardware target, not yet a verified support claim. The port-8001 compatibility policy remains open until that TV is tested. Use the commands in the [contribution guide](contribution-guide.md) for the repository's validation workflow.
+The current `Cargo.toml` and `src/main.rs` are a minimal starting point. Dependencies and bundle configuration should be selected when their implementation is ready to be validated. The Settings Window's TV page is the entry point for network discovery and manual host entry. Discovery presents candidates for user selection and saves a TV only after TV Identity Confirmation and required pairing. At launch, restore the most recently selected saved TV and attempt its Connection using the normal reconnect policy; manual host entry remains available if discovery is unavailable or finds nothing. Select the discovery mechanism after testing the TV's advertisements. KU75UA8090FXKR is the initial hardware target, not yet a verified support claim. The port-8001 compatibility policy remains open until that TV is tested. Use the commands in the [contribution guide](contribution-guide.md) for the repository's validation workflow.

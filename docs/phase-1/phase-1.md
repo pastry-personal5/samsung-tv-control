@@ -1,8 +1,8 @@
 # Phase 1: Foundation and Architecture
 
-Status: Done
-Goal: Establish the validated product and technical direction required to begin
-building the Rust macOS Samsung TV remote.
+Status: Active
+Goal: Establish the validated product, technical, and UX direction required to
+begin building the Rust macOS Samsung TV remote.
 
 ## Exit criteria
 
@@ -10,8 +10,8 @@ building the Rust macOS Samsung TV remote.
   privacy constraints that affect the product.
 - Initial architecture identifies the proposed Rust crate structure, macOS UI
   boundary, device-communication boundary, and unresolved decisions.
-- The architecture is reviewed against the research findings and is ready to
-  guide the first implementation milestone.
+- Canonical UX terms, information architecture, and the planned GUI are
+  documented and ready to guide implementation.
 
 ## Milestones
 
@@ -32,5 +32,10 @@ Goal: Define the initial software architecture using the findings from P1-M1.
 Plan: [overview](milestone-02-overview.md),
 [architecture](milestone-02-architecture.md)
 
-Phase 1 is complete: the initial research and software architecture are
-recorded. Target-TV behavior remains to be validated during implementation.
+### P1-M3: UX Terms, Information Architecture, and GUI
+
+Status: Active
+Goal: Define shared UX language, information hierarchy, and the first planned
+GUI layout before implementation.
+Plan: [overview](milestone-03-overview.md),
+[architecture](milestone-03-architecture.md)
