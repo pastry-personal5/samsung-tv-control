@@ -21,13 +21,16 @@ In scope:
 - Define TV Selection Table visibility and single/multiple-row selection
   behavior for saved and discovered TVs.
 - Define key empty, unavailable, and capability-dependent GUI states.
+- Define the Global Messages Pane and separate Activity View, including their
+  shared message source and order.
+- Define Sidebar destinations and their corresponding Main Pane views for
+  Sources, Apps, and Text Input.
 
 Out of scope:
 
 - Implementing Iced views, application behavior, or device controls.
 - Pixel-level measurements, visual styling, icons, and final copywriting.
-- Deciding remaining Sidebar contents or placement of secondary feature areas
-  that the owner has left TBD.
+- Deciding where Wake appears; that placement remains open.
 
 ## Completion checklist
 
@@ -36,6 +39,8 @@ Out of scope:
   [planned information architecture](../planned-information-architecture.md).
 - [ ] Publish the Remote View layout and interaction states in
   [planned GUI](../ux-gui.md).
+- [ ] Specify cross-window messages and recent activity without exposing
+  sensitive TV or local-network data.
 - [ ] Use the glossary terms consistently across all three UX documents.
 - [ ] Link the documents from this plan and record owner decisions in the
   [phase changelog](changelog.md).

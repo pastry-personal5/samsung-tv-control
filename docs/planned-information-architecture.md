@@ -3,24 +3,29 @@
 Status: Active
 
 This document describes how the first usable app's information is grouped.
-It establishes the default view and known relationships without assigning
-unresolved content to the Sidebar. See the canonical [UX terms](ux-term.md).
+It establishes the default view and known relationships, with Wake placement
+still open. See the canonical [UX terms](ux-term.md).
 
 ## Top-level structure
 
 ```text
 App window
 ├── Sidebar
-│   ├── Main Toolbar — at bottom
-│   │   └── Settings button → Settings Window
-│   └── Other contents — TBD
+│   ├── Sources → Sources View
+│   ├── Apps → Apps View
+│   ├── Text Input → Text Input View
+│   └── Main Toolbar — at bottom
+│       └── Settings button → Settings Window
 └── Main Pane
-    └── Remote View — default view
-        ├── Selected TV context and operation status
-        ├── Power Toggle
-        ├── Directional Pad
-        ├── Back and Home
-        └── Volume controls
+    ├── Remote View — default view
+    │   ├── Selected TV context, Pairing and Connection status
+    │   ├── Current request feedback and recovery action
+    │   ├── Power Toggle
+    │   ├── Directional Pad
+    │   ├── Back and Home
+    │   └── Volume controls
+    ├── Global Messages Pane — all user-relevant app messages
+    └── Activity View — recent request and Connection events
 
 Settings Window
 ├── Settings Sidebar
@@ -32,40 +37,56 @@ Settings Window
 ```
 
 The main app has two main parts: the Sidebar on the left and the Main Pane on
-the right. The app opens to the Remote View. The Main Toolbar sits at the
-bottom of the Sidebar and contains a Settings button. Other Sidebar content
-remains TBD. The Settings button opens a separate Settings Window, which has
+the right. It opens to the Remote View. Selecting Sources, Apps, or Text Input
+in the Sidebar displays the corresponding view in the Main Pane. The Global
+Messages Pane and Activity View remain below that view. The Main Toolbar sits
+at the bottom of the Sidebar and contains a Settings button. The Settings
+button opens a separate Settings Window, which has
 its own Settings Sidebar and Settings Main Pane. TV is the first Settings
-Sidebar item.
+Sidebar item. The lower Main Pane always shows a Global Messages Pane followed
+by a separate Activity View. The Global Messages Pane also receives messages
+originating in the Settings Window.
 
 ## Product areas
 
 | Product area | User purpose | Placement |
 | --- | --- | --- |
 | Remote View | Send navigation, power, and volume requests to the Selected TV. | Main Pane by default. |
+| Sources View | Request a supported source or navigate the TV's source chooser. | Select Sources in the Sidebar. |
+| Apps View | Browse and launch apps reported by the Selected TV. | Select Apps in the Sidebar. |
+| Text Input View | Send text to a focused native TV text field when supported. | Select Text Input in the Sidebar. |
+| Global Messages Pane | Read user-relevant messages from the whole app, including Settings Window results. | Lower Main Pane, above the Activity View. |
+| Activity View | Inspect recent request outcomes and Connection events. | Below the Global Messages Pane; always visible. |
 | TV setup | Discover a TV or enter its host, pair, and save it for later use. | TV settings in the Settings Window. Open it with the Settings button. |
-| Sources | Request a supported source or navigate the TV's source chooser. | TBD. |
-| Installed TV apps | Browse and launch apps reported by the Selected TV. | TBD. |
-| Text entry | Send text to a focused native TV text field when supported. | TBD. |
 | Wake | Send a wake request and report whether reconnection succeeds. | TBD. |
 
-These areas describe product capabilities, not a commitment to a particular
-tab, sidebar item, window, or modal. Decide their navigation placement in a
-later UX update before implementing those flows.
+Sources, Apps, and Text Input are named Sidebar destinations. Their views
+follow the same Selected TV and application monitoring state as the Remote
+View; changing views does not change the Selected TV or open another TV
+session.
 
 ## Context and status
 
 The app opens the main app window to the Remote View, including on first
 launch. Do not automatically open the Settings Window or add a separate
-onboarding screen. When no TV is selected, keep the main app window visible;
-use the standard Remote View layout without adding a setup prompt. Control
-availability in that state remains TBD. The Settings Window opens only when
-the user clicks Settings in the Main Toolbar.
+onboarding screen. When no TV is selected, keep the main app window visible
+with the standard Remote View layout, disable its remote controls, and show a
+short status line pointing to Settings. The status line is not a setup prompt.
+The Settings Window opens only when the user clicks Settings in the Main Toolbar.
 
 The Remote View is scoped to one Selected TV at a time. Show the selected TV's
-identity and relevant pairing, connection, and operation status near the
-controls, while keeping those states distinct. TV selection happens in TV
-settings; placement of any additional device management remains TBD.
+identity, Pairing and Connection status, and the most relevant request outcome
+near the controls. Keep request outcome separate from any observed TV state.
+Show a recovery action in context when the user can act, such as retrying a
+Connection or opening TV settings to resolve Pairing. TV selection happens in
+TV settings; placement of any additional device management remains TBD.
+
+The Global Messages Pane is a chronological, session-only feed of messages a
+user needs to know across both windows. Keep its latest entry at the bottom.
+The Activity View shows structured recent command outcomes and Connection
+events, also for the current session. A message can summarize an activity
+event; both must agree on its outcome. Neither pane stores TV credentials,
+entered text, addresses, or raw network data.
 
 When the TV Selection Table has no rows, hide it and center the
 **Discover TVs** button horizontally and vertically within the Settings Main
@@ -95,8 +116,7 @@ that every control is usable on every TV.
 
 ## Open placement decisions
 
-- Sidebar contents beyond the Main Toolbar and Settings button.
-- Where Sources, Installed TV apps, Text entry, and Wake are accessed.
+- Where Wake is accessed.
 - Which additional settings pages appear after TV in the Settings Sidebar.
 - Where device management and connection details live.
 

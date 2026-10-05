@@ -11,11 +11,19 @@ here before using it elsewhere.
 
 | Term | Meaning and usage |
 | --- | --- |
-| **Sidebar** | The left-hand part of the main app window. It contains the Main Toolbar at the bottom; other contents remain TBD. |
+| **Sidebar** | The left-hand part of the main app window. It contains Sources, Apps, and Text Input navigation items, with the Main Toolbar at the bottom. |
 | **Main Pane** | The right-hand part of the app window. It displays the current view. |
 | **Remote View** | The default Main Pane view containing the remote controls. |
+| **Sources View** | The Main Pane view for selecting a TV source or opening the TV's source chooser. |
+| **Apps View** | The Main Pane view for browsing and launching apps reported by the Selected TV. |
+| **Text Input View** | The Main Pane view for sending text to a focused TV text field when supported. |
+| **Global Messages Pane** | The resizable pane in the lower part of the main app's Main Pane, directly above the Activity View. It shows user-relevant messages from the Remote View and Settings Window in time order, with the newest message at the bottom. |
+| **Activity View** | The separate view below the Global Messages Pane, showing recent command outcomes and Connection events for the current app session. |
 | **Main Toolbar** | The toolbar anchored at the bottom of the main app's Sidebar. It contains the Settings button. |
 | **Settings button** | Opens the separate Settings Window. |
+| **Sources** | Sidebar item that opens Sources View. |
+| **Apps** | Sidebar item that opens Apps View. |
+| **Text Input** | Sidebar item that opens Text Input View. |
 | **Settings Window** | The separate app window for preferences and TV selection. It has its own Settings Sidebar and Settings Main Pane. |
 | **Settings Sidebar** | The navigation sidebar inside the Settings Window. Its first item is TV. Other items are TBD. |
 | **Settings Main Pane** | The content area to the right of the Settings Sidebar. It shows the selected settings page. |
@@ -49,6 +57,8 @@ here before using it elsewhere.
 | **Pairing** | The TV approval and credential exchange needed to establish trust. Pairing is distinct from an active connection. |
 | **TV Identity Confirmation** | The user's confirmation that a discovered TV is the intended TV, based on the identity details shown by the app. It is separate from approving the pairing prompt on the TV. |
 | **Connection** | The current network session between the app and a TV. A paired TV may be disconnected. |
+| **Request outcome** | What happened to an app request: rejected, pending, not sent, sent, confirmed by the TV, or uncertain. It does not by itself say what the TV is currently doing. |
+| **Observed TV state** | A power, source, mute, or volume reading that the TV actually reported; show its freshness when relevant. |
 | **Unavailable** | An operation or control cannot currently be used. Explain why when the reason is known. |
 | **Unsupported** | The selected TV is known not to support an operation. Do not use this when support is merely unknown. |
 | **Unknown support** | The app has not established whether the selected TV supports an operation. Avoid claiming it is unsupported. |

@@ -4,9 +4,29 @@ Status: Active
 
 ## Entries
 
+- 2026-10-05 — Owner added **Sources**, **Apps**, and **Text Input** as Sidebar
+  destinations. Each opens Sources View, Apps View, or Text Input View in the
+  Main Pane while the Global Messages Pane and Activity View remain available.
+  Wake placement remains open. Updated the [UX glossary](../ux-term.md),
+  [information architecture](../planned-information-architecture.md),
+  [GUI plan](../ux-gui.md), and P1-M3 plans.
+- 2026-10-05 — Reviewed control, monitoring, and Clean Architecture boundaries.
+  Assigned the sole bounded command queue and result journal to the application
+  coordinator, kept socket writes in the Samsung adapter, and defined atomic
+  snapshots, sequenced events, stale observations, and request outcomes. The
+  owner chose disabled remote controls with a short Settings status on first
+  launch, a visible but disabled Volume Slider when exact control is unavailable,
+  and two always-visible lower Main Pane regions: a resizable Global Messages
+  Pane (about eight lines initially, newest message at bottom) above a separate
+  Activity View. Messages from both app windows share a session-only feed.
+  Updated the [software architecture](../architecture.md),
+  [repository map](../planned-repository-architecture.md),
+  [UX glossary](../ux-term.md),
+  [information architecture](../planned-information-architecture.md), and
+  [GUI plan](../ux-gui.md).
 - 2026-10-05 — Owner clarified first launch: show the main app window only;
-  do not add onboarding, a setup prompt, or automatically open Settings. If no
-  TV is selected, control availability remains undecided. TV discovery remains
+  do not add onboarding, a setup prompt, or automatically open Settings. At the
+  time, control availability without a TV was undecided. TV discovery remains
   available from TV settings when the user opens it. Updated the
   [information architecture](../planned-information-architecture.md),
   [GUI plan](../ux-gui.md), and software architecture.

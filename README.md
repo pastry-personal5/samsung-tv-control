@@ -13,7 +13,8 @@ protocol implementation have not been built yet.
 
 The [software architecture](docs/architecture.md) defines the selected UI and
 runtime design. The [planned repository architecture](docs/planned-repository-architecture.md)
-maps it to module responsibilities.
+maps it to module responsibilities. The [control and monitoring review](docs/control-monitoring-review.md)
+records the design findings and implementation checks.
 
 The current UX plan defines [canonical terms](docs/ux-term.md), the
 [information architecture](docs/planned-information-architecture.md), and the

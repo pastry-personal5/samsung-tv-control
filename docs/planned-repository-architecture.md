@@ -19,10 +19,11 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 │   ├── application/
 │   │   ├── mod.rs
 │   │   ├── command.rs            # typed requests from all input surfaces
-│   │   ├── event.rs              # typed outcomes and session events
+│   │   ├── event.rs              # typed outcomes and sequenced control events
 │   │   ├── state.rs              # pairing, connection and text-session states
-│   │   ├── ports.rs              # session, discovery, wake and storage traits
-│   │   ├── dispatcher.rs         # sequenced, bounded command admission
+│   │   ├── monitoring.rs         # snapshots, results and activity
+│   │   ├── ports.rs              # transport, discovery, wake and storage traits
+│   │   ├── dispatcher.rs         # sole bounded control queue and admission
 │   │   ├── device_service.rs     # discovery, pairing, connect and forget
 │   │   └── control_service.rs    # buttons, wake, sources, apps and text
 │   ├── presentation/
@@ -32,14 +33,15 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 │   │       ├── app.rs            # Iced application and main/settings window wiring
 │   │       ├── message.rs        # UI and effect-result messages
 │   │       ├── view_model.rs     # Remote and settings UI state projection
+│   │       ├── messages.rs       # shared session-only Global Messages feed
 │   │       ├── input.rs          # keyboard/pointer to command mapping
-│   │       └── view.rs           # remote controls and settings window layout
+│   │       └── view.rs           # controls, Activity View and both windows
 │   └── infrastructure/
 │       ├── mod.rs
 │       ├── samsung/
 │       │   ├── mod.rs
 │       │   ├── codec.rs          # bounded wire parsing and frame encoding
-│       │   ├── session.rs        # one socket owner and serialized send queue
+│       │   ├── session.rs        # one socket owner, serial writes and TV events
 │       │   ├── keys.rs           # model-aware action to remote-key mapping
 │       │   ├── apps.rs           # installed-app events and launch frames
 │       │   └── text.rs           # IME events and text-entry frames
@@ -69,21 +71,21 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 | Owner | Public surface | Dependency direction |
 | --- | --- | --- |
 | `domain` | `DeviceId`, `Device`, `RemoteAction`, typed source/app references and capability values | Standard library and small value-type dependencies only |
-| `application` | `Command`, `Event`, connection/pairing/text states, use-case services, narrow ports such as `RemoteSession`, `DeviceDiscovery`, `WakeSender`, `DeviceRepository`, `SecretStore`, and `TrustStore` | `domain` |
+| `application` | `Command`, `ControlSnapshot`, `ControlEvent`, typed request results, connection/pairing/text states, use-case services, narrow ports such as `TvTransport`, `DeviceDiscovery`, `WakeSender`, `DeviceRepository`, `SecretStore`, and `TrustStore` | `domain` |
 | `presentation::iced` | Iced `Message`, `ViewModel`, `view`, input mapper | `application`, `domain`, Iced |
-| `infrastructure::samsung` | `RemoteSession` implementation, codec and key map | `application` ports, `domain`, transport dependencies |
+| `infrastructure::samsung` | `TvTransport` implementation, codec and key map | `application` ports, `domain`, transport dependencies |
 | Other `infrastructure` modules | Discovery, wake, persistence, Keychain and macOS network-access adapters | `application` ports, `domain`, platform dependencies |
 | `main.rs` | Construction and lifecycle wiring | All outer modules |
 
-Keep port traits near the use cases that need them. Define a small method set and typed errors for each port. A secret lookup should return only the credential needed for the selected device; ordinary device records must not serialize pairing tokens or certificate pins. The composition root injects concrete adapters and one shared session handle into the application services, then passes cloneable service handles to the Iced adapter. The ViewModel updates presentation state and emits commands; `app.rs` submits fast controls to the ordered dispatcher and uses Iced tasks for longer operations. Command admission assigns a sequence and returns accepted or busy without waiting for the TV. Completion reports written or uncertain separately. Avoid importing Iced in `domain`, `application`, or `infrastructure`.
+Keep port traits near the use cases that need them. Define a small method set and typed errors for each port. A secret lookup should return only the credential needed for the selected device; ordinary device records must not serialize pairing tokens or certificate pins. The composition root injects concrete adapters into one application coordinator, then passes a command handle and read-only observation handle to the Iced adapter. `TvTransport` opens and closes a session, serially writes one typed operation handed to it, and reports transport results and TV observations. It has no command admission queue or product retry policy. The ViewModel updates presentation state and emits commands; `app.rs` submits fast controls to the ordered dispatcher and uses Iced tasks for longer operations. Admission returns a typed accepted or rejected result; each accepted request later has one terminal result. `monitoring.rs` retains unacknowledged terminal results in memory and supplies atomic snapshots, sequenced events, and a bounded Activity View projection to observers. `presentation::iced::messages` owns one app-wide, session-only feed of user-relevant messages from both windows, derived from typed outcomes and presentation events. Avoid importing Iced in `domain`, `application`, or `infrastructure`.
 
-The command boundary is semantic. For example, the ViewModel emits `Command::Send { device, action: RemoteAction::Select }`; the Samsung key map chooses `KEY_ENTER`, and the codec creates the `ms.remote.control` frame. Source selection, TV app launch, and text entry use separate command variants. App IDs must come from the selected TV's bounded catalog, with device membership checked again at dispatch. The session handles IME start/end events and exposes text state; `text.rs` owns UTF-8 encoding into the wire format. UI events, application commands, Samsung frames, and Iced `Task` values are separate types with separate jobs. See [Iced application and subscription documentation](https://docs.rs/iced/0.14.0/iced/), [protocol research](research/samsung-tv-remote-protocol.md), [source and app research](research/source-changes-and-app-launches.md), and [text-input research](research/samsung-tv-text-input.md).
+The command boundary is semantic. For example, the ViewModel emits `Command::Send { device, action: RemoteAction::Select }`; the Samsung key map chooses `KEY_ENTER`, and the codec creates the `ms.remote.control` frame. Exact volume setting, source selection, TV app launch, and text entry use separate command variants. App IDs must come from the selected TV's bounded catalog, with device membership checked again at dispatch. The session parses IME start/end events into typed observations; the application owns text state, and `text.rs` owns UTF-8 encoding into the wire format. UI events, application commands, Samsung frames, and Iced `Task` values are separate types with separate jobs. See [Iced application and subscription documentation](https://docs.rs/iced/0.14.0/iced/), [protocol research](research/samsung-tv-remote-protocol.md), [source and app research](research/source-changes-and-app-launches.md), and [text-input research](research/samsung-tv-text-input.md).
 
 ## Runtime ownership
 
-`main.rs` builds the adapters and application services, restores the most recently selected saved TV when one exists, then always starts the main Iced window in the Remote View. Do not auto-open Settings or show onboarding on first launch. The Main Toolbar opens a separate Settings Window. Its TV settings page lists saved and discovered TVs in a radio-button TV Selection Table above Discover TVs, hiding the table when it has no rows. A single row is preselected; multiple rows require a choice when none is active. Selecting a discovered candidate requires TV Identity Confirmation and pairing before saving it as the active TV. Remote View content and control availability without a Selected TV remain TBD. The Iced adapter dispatches ViewModel commands in message order. The services own connection policy and expose sanitized events. One session owner for the active TV owns the WebSocket, serializes writes through a bounded queue, and emits events; the Iced subscription observes that stream. Fast controls enter the queue synchronously without blocking the UI; Iced tasks await longer operations and map their results to presentation messages. Dropping or recreating the UI subscription must not duplicate the network connection. A newly attached observer receives a consistent state snapshot and subsequent sequenced events; a missed event triggers resynchronization.
+`main.rs` builds the adapters and application services and starts the main Iced window in the Remote View. The application startup use case restores the most recently selected saved TV when one exists and initiates its Connection. Do not auto-open Settings or show onboarding on first launch. With no Selected TV, preserve the Remote View layout, disable controls, and show a short status line pointing to Settings. The Main Toolbar opens a separate Settings Window. Its TV settings page lists saved and discovered TVs in a radio-button TV Selection Table above Discover TVs, hiding the table when it has no rows. A single row is preselected; multiple rows require a choice when none is active. Selecting a discovered candidate requires TV Identity Confirmation and pairing before saving it as the active TV. The Iced adapter dispatches ViewModel commands in message order. The application coordinator owns the sole bounded command queue, connection policy, and sanitized monitoring state. One infrastructure session for the active TV owns the WebSocket and serializes writes handed to it. Fast controls enter the application queue synchronously without blocking the UI; Iced tasks await longer operations and map their results to presentation messages. Dropping or recreating the UI subscription must not duplicate the network connection. A newly attached observer receives a consistent state snapshot and subsequent sequenced events; a missed event triggers resynchronization. A terminal result is retained until acknowledged, or admission returns busy when its bounded journal is full.
 
-Device discovery, wake retries, and connection attempts have explicit cancellation and time limits. The application layer decides when they stop; adapters implement the I/O. Operation IDs prevent results from a previous selection or connection from changing the current ViewModel. The UI renders states such as pairing pending, connected, reconnecting, re-pair required, text input available, and wake timeout without inferring success from a socket write alone.
+Device discovery, wake retries, and connection attempts have explicit cancellation and time limits. The application layer decides when they stop; adapters implement the I/O. Request IDs and selection generations prevent results from a previous selection or connection from changing the current ViewModel. The UI renders states such as pairing pending, connected, reconnecting, re-pair required, text input available, and wake timeout without inferring success from a socket write alone. Only observed TV state with a known source and freshness can populate current power, source, mute, or numeric volume readings.
 
 ## Repository rules
 
