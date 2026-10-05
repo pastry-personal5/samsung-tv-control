@@ -13,8 +13,10 @@ local-network captures.
 The consolidated handoff is
 [P1-M1 Initial product and platform research](../research/p1-m1-initial-research.md),
 with protocol and threat detail in the linked research notes. The decision
-record deliberately leaves the UI bridge, packaging route, discovery method,
-TLS behavior, and support boundary for P1-M2/hardware validation.
+record left the UI bridge, packaging route, discovery method, TLS behavior, and
+support boundary for P1-M2 and hardware validation. P1-M2 has since recorded
+the architecture decisions; target-specific behavior remains a
+hardware-validation item.
 
 ## Outputs
 

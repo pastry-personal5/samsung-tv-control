@@ -2,7 +2,7 @@
 
 Status: Active
 
-Development proceeds in numbered **phases**, and each phase is split into numbered **milestones**. This doc defines how phases and milestones work and where their plans live. The general rules for docs are in [AGENTS.md](../AGENTS.md) under "Documentation".
+Development proceeds in numbered **phases**, and each phase is split into numbered **milestones**. This doc defines how phases and milestones work, where their plans live, and how those docs are maintained. [AGENTS.md](../AGENTS.md) covers repository layout, code style, and testing.
 
 ## Phases and milestones
 
@@ -10,7 +10,7 @@ Development proceeds in numbered **phases**, and each phase is split into number
 - **Milestones** are numbered Milestone 1, 2, 3, and so on. Numbering restarts in each phase. A milestone is a small, verifiable step toward its phase's goal. It should fit in one reviewable change or a short series of changes.
 - **IDs:** `P<phase>-M<milestone>`. For example, `P1-M2` is Phase 1, Milestone 2. Put the ID in PR titles and in commit message bodies.
 - **IDs are stable.** Never renumber a milestone. New milestones get the next free number, even when they will run before an existing one. A dropped milestone keeps its ID. Mark it `Dropped` with a one-line reason instead of deleting it.
-- **One active phase at a time.** Inside it, work on milestones in order unless the phase doc says otherwise.
+- **One active phase at a time.** Inside it, work on milestones in order unless the phase doc says otherwise. If every phase is done, no phase is active; update the roadmap when the next phase is planned.
 
 ### Status values
 
@@ -92,7 +92,7 @@ Chronological record of decisions, owner calls, and design changes made during P
 
 ## Doc status and archiving
 
-The rules for where docs go, how they're formatted, and how they're archived are in [AGENTS.md](../AGENTS.md) under "Documentation". This section adds only process details.
+This section defines the status and archiving rules for phase and milestone docs.
 
 - **Status values** for docs other than phase plans: `Draft`, `Proposal`, `Active`, `Superseded by <link>`, or `Archived`.
 - **When to archive:** a completed phase plan; a design replaced by a newer one; a spike or research note whose conclusions became decisions. When you archive a doc, also fix its links in `docs/roadmap.md`.

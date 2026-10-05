@@ -2,10 +2,10 @@
 
 ## Project Structure
 
-Samsung TV Remote is a super-fast native macOS remote written in Rust. The
-repository is currently an early starting point, with no application source,
-tests, or Cargo manifest committed yet. Keep the root for project metadata and
-top-level configuration. Put application code in `src/`, integration tests in
+Samsung TV Remote is a responsive native macOS remote written in Rust. The
+repository is currently an early starting point, with a minimal Cargo package
+and no application behavior or tests yet. Keep the root for project metadata
+and top-level configuration. Put application code in `src/`, integration tests in
 `tests/`, and bundled resources in `assets/`. Keep network protocol, device
 discovery, and macOS UI responsibilities in focused modules.
 

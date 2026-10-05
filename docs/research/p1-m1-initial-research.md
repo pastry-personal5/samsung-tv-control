@@ -1,10 +1,10 @@
 # P1-M1: Initial product and platform research
 
-Status: Active
+Status: Archived
 Research date: 2026-10-05
 
-This note condenses the evidence and product constraints needed to start
-P1-M2. It separates user-provided targets and vendor-documented platform facts
+This note condenses the evidence and product constraints that informed P1-M2.
+It separates user-provided targets and vendor-documented platform facts
 from community-observed TV protocol behavior and unverified assumptions.
 
 ## Recorded targets
@@ -48,12 +48,16 @@ Protocol details, key examples, power behavior, and sources are in the
 mitigations, and hardware validation questions are in the
 [security research](samsung-tv-protocol-security.md).
 
-## Minimum v1 remote contract
+## Initial minimum remote contract
 
-Initial controls: directional navigation, Select/OK, Back, Home, volume up,
-volume down, mute, and power off. Send discrete `Click` key events. Hold/long
-press, arbitrary key injection, channel/app launching, text input, voice input,
-and cloud control are outside this minimum until separately validated.
+The initial research minimum was directional navigation, Select/OK, Back, Home,
+volume up, volume down, mute, and power off. The owner later expanded the first
+usable app to include wake, source selection, installed-app launch, and text
+input when supported; this update is recorded in the
+[phase changelog](../phase-1/changelog.md) and specified in the
+[software architecture](../architecture.md). Voice input and cloud control
+remain outside the first usable app scope. Send discrete `Click` key events;
+hold/long press and arbitrary key injection remain out of scope.
 
 Power behavior must be explicit: do not retry a potentially toggling power
 command after an uncertain send; treat a socket closing after power-off as an

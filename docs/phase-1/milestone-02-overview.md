@@ -1,6 +1,6 @@
 # P1-M2: Initial Architecture
 
-Status: Planned
+Status: Done
 
 ## Goal
 
@@ -23,8 +23,17 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] Publish a module and responsibility map.
-- [ ] Define the UI-to-device command flow and error flow.
-- [ ] Record storage and redaction rules for pairing data.
-- [ ] Identify interfaces that permit deterministic tests without a TV.
-- [ ] Link resolved decisions and remaining risks from the phase changelog.
+- [x] Publish a module and responsibility map in the
+  [planned repository architecture](../planned-repository-architecture.md).
+- [x] Define the UI-to-device command flow and error flow in the
+  [software architecture](../architecture.md).
+- [x] Record storage and redaction rules for pairing data in the software
+  architecture and [security research](../research/samsung-tv-protocol-security.md).
+- [x] Identify interfaces that permit deterministic tests without a TV in
+  the software and repository architectures.
+- [x] Link resolved owner decisions and remaining hardware-validation risks
+  from the [phase changelog](changelog.md).
+
+The implementation boundary and initial product scope are defined. Exact TV
+endpoint, certificate, key, discovery, and wake behavior remain hardware
+validation items and do not block this architecture milestone.

@@ -1,7 +1,7 @@
 # Contribution Guide
 
 Samsung TV Remote is a native macOS application written in Rust. This guide
-defines the canonical local Cargo workflow once `Cargo.toml` is committed.
+defines the canonical local Cargo workflow for the current Rust package.
 
 ## Setup and development
 
@@ -12,6 +12,9 @@ with:
 ```sh
 cargo run
 ```
+
+The current package is a minimal Hello World binary; this command runs the
+scaffold and does not launch a TV remote interface.
 
 Run individual tests while iterating with `cargo test <name>`. Do not require a
 physical TV or a local network for automated tests; use deterministic fakes for

@@ -1,17 +1,19 @@
 # Samsung TV Remote
 
-Samsung TV Remote is a super-fast remote controller for macOS, written in Rust.
+Samsung TV Remote is a responsive remote controller for macOS, written in Rust.
 
 It is intended to provide responsive, keyboard-friendly control of compatible Samsung TVs on the local network.
 
 ## Status
 
-The repository is being initialized. The Rust crate, macOS interface, and
-device protocol implementation have not been committed yet.
+The repository has a minimal Rust crate. The macOS interface and device
+protocol implementation have not been built yet.
 
 ## Technology and architecture
 
-The [architecture](docs/architecture.md) defines the selected technologies, software architecture.
+The [software architecture](docs/architecture.md) defines the selected UI and
+runtime design. The [planned repository architecture](docs/planned-repository-architecture.md)
+maps it to module responsibilities.
 
 ## Development
 

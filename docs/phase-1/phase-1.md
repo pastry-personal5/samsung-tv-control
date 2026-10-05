@@ -1,6 +1,6 @@
 # Phase 1: Foundation and Architecture
 
-Status: Active
+Status: Done
 Goal: Establish the validated product and technical direction required to begin
 building the Rust macOS Samsung TV remote.
 
@@ -27,7 +27,10 @@ Notes: Research and platform constraints are summarized in
 
 ### P1-M2: Initial Architecture
 
-Status: Planned  
+Status: Done
 Goal: Define the initial software architecture using the findings from P1-M1.  
 Plan: [overview](milestone-02-overview.md),
 [architecture](milestone-02-architecture.md)
+
+Phase 1 is complete: the initial research and software architecture are
+recorded. Target-TV behavior remains to be validated during implementation.

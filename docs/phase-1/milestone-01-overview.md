@@ -37,4 +37,7 @@ Out of scope:
 
 The documentation checklist and required Cargo gate are complete. The minimal
 Hello World binary is the initial package scaffold; product implementation
-remains out of scope for this milestone.
+remains out of scope for this milestone. Its initial minimum feature list was
+later expanded by the owner decision recorded in the
+[phase changelog](changelog.md) and specified in the
+[software architecture](../architecture.md).
