@@ -35,6 +35,24 @@ warnings rather than suppressing them without a documented reason. `cargo test`
 runs the package test suite; add or update tests for each behavior change and
 bug fix.
 
+## Commit messages
+
+Write commit messages in [Conventional Commits](https://www.conventionalcommits.org)
+(Angular) style.
+
+- **Title:** `<type>[(scope)]: <summary>` — lowercase, imperative, 50 characters
+  or fewer, no trailing period. Types: `feat`, `fix`, `docs`, `style`,
+   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **Body** (optional): one blank line after the title, then short paragraphs
+  explaining *why* the change was made, wrapped at 72 characters. Keep it brief.
+
+Keep each commit focused. Example:
+
+    feat(discovery): add mDNS TV discovery
+
+    Find TVs on the local network so the remote can list devices without manual
+    IP entry.
+
 ## Pull requests
 
 Keep a pull request focused and explain the user-visible effect, relevant

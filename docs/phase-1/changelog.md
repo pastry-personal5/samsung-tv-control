@@ -4,6 +4,19 @@ Status: Active
 
 ## Entries
 
+- 2026-10-05 — Completed P1-M3 after publishing the canonical UX glossary,
+  information architecture, GUI interaction plan, and control/monitoring
+  design. Verified Cargo format, Clippy, and test gates; `cargo test` passed
+  with zero tests because this milestone adds no behavior. Relative Markdown
+  links and `git diff --check` passed. See the completed
+  [milestone overview](milestone-03-overview.md).
+- 2026-10-05 — Planned P1-M4, Iced Application Shell and Navigation, as the
+  next implementation milestone after P1-M3 completes. It builds the shared
+  window and view shell without TV networking or device behavior. The plan
+  uses one Iced application for the main and Settings windows and keeps
+  presentation state separate from application commands. See the
+  [overview](milestone-04-overview.md) and
+  [architecture](milestone-04-architecture.md).
 - 2026-10-05 — Owner added **Sources**, **Apps**, and **Text Input** as Sidebar
   destinations. Each opens Sources View, Apps View, or Text Input View in the
   Main Pane while the Global Messages Pane and Activity View remain available.

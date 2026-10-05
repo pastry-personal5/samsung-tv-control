@@ -34,8 +34,16 @@ Plan: [overview](milestone-02-overview.md),
 
 ### P1-M3: UX Terms, Information Architecture, and GUI
 
-Status: Active
+Status: Done
 Goal: Define shared UX language, information hierarchy, and the first planned
 GUI layout before implementation.
 Plan: [overview](milestone-03-overview.md),
 [architecture](milestone-03-architecture.md)
+
+### P1-M4: Iced Application Shell and Navigation
+
+Status: Planned
+Goal: Deliver a launchable Iced shell with the agreed navigation, main/settings
+windows, and shared message and activity regions.
+Plan: [overview](milestone-04-overview.md),
+[architecture](milestone-04-architecture.md)
