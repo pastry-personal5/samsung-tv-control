@@ -1,6 +1,6 @@
 # Samsung TV Remote
 
-Samsung TV Remote is a responsive remote controller for macOS, written in Rust.
+Samsung TV Remote is a super-fast remote controller for macOS, written in Rust.
 
 It is intended to provide responsive, keyboard-friendly control of compatible Samsung TVs on the local network.
 
