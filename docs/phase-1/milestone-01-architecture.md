@@ -1,6 +1,6 @@
 # P1-M1: Initial Research Architecture
 
-Status: Planned
+Status: Archived
 
 ## Approach
 
@@ -9,6 +9,12 @@ findings in small, attributable notes and separate confirmed facts from
 assumptions. Use sanitized fixtures or protocol descriptions when describing
 TV communication; do not retain pairing tokens, device IP addresses, or raw
 local-network captures.
+
+The consolidated handoff is
+[P1-M1 Initial product and platform research](../research/p1-m1-initial-research.md),
+with protocol and threat detail in the linked research notes. The decision
+record deliberately leaves the UI bridge, packaging route, discovery method,
+TLS behavior, and support boundary for P1-M2/hardware validation.
 
 ## Outputs
 
