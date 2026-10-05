@@ -1,6 +1,6 @@
 # P1-M3: UX Terms, Information Architecture, and GUI
 
-Status: Active
+Status: Done
 
 ## Goal
 
@@ -34,14 +34,26 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] Publish a canonical glossary in [UX terms](../ux-term.md).
-- [ ] Publish the product hierarchy and explicit TBD decisions in
+- [x] Publish a canonical glossary in [UX terms](../ux-term.md).
+- [x] Publish the product hierarchy and explicit TBD decisions in
   [planned information architecture](../planned-information-architecture.md).
-- [ ] Publish the Remote View layout and interaction states in
+- [x] Publish the Remote View layout and interaction states in
   [planned GUI](../ux-gui.md).
-- [ ] Specify cross-window messages and recent activity without exposing
+- [x] Specify cross-window messages and recent activity without exposing
   sensitive TV or local-network data.
-- [ ] Use the glossary terms consistently across all three UX documents.
-- [ ] Link the documents from this plan and record owner decisions in the
+- [x] Use the glossary terms consistently across all three UX documents.
+- [x] Link the documents from this plan and record owner decisions in the
   [phase changelog](changelog.md).
-- [ ] Check relative Markdown links and `git diff --check`.
+- [x] Check relative Markdown links and `git diff --check`.
+
+## Acceptance evidence
+
+- UX terms, information hierarchy, and GUI behavior are published in the
+  linked canonical documents. They include the agreed first-launch state,
+  Sidebar routes, TV selection flow, Global Messages Pane, and Activity View.
+- Owner decisions are recorded in the [phase changelog](changelog.md).
+- `cargo fmt --all -- --check` and
+  `cargo clippy --all-targets -- -D warnings` passed.
+- `cargo test` passed; the scaffold currently contains zero tests, which is
+  expected because P1-M3 adds no application behavior.
+- All relative Markdown links resolved, and `git diff --check` passed.

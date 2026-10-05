@@ -1,6 +1,6 @@
 # P1-M3: UX Terms, Information Architecture, and GUI
 
-Status: Active
+Status: Done
 
 ## Approach
 
