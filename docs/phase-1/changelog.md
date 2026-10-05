@@ -1,5 +1,12 @@
 # Phase 1 Changelog
 
+- 2026-10-05 — P1-M4 implementation added the Iced presentation shell with
+  in-memory routing, idempotent multi-window Settings lifecycle, disabled
+  no-TV controls, resizable shared messages/activity regions, and deterministic
+  presentation-state tests. Cargo validation passed; native-window visual
+  acceptance and sanitized screenshots remain pending on a visible macOS
+  session. No network or storage service is present in the shell.
+
 Status: Active
 
 ## Entries

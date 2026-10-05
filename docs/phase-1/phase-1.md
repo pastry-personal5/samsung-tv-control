@@ -42,7 +42,7 @@ Plan: [overview](milestone-03-overview.md),
 
 ### P1-M4: Iced Application Shell and Navigation
 
-Status: Planned
+Status: Active
 Goal: Deliver a launchable Iced shell with the agreed navigation, main/settings
 windows, and shared message and activity regions.
 Plan: [overview](milestone-04-overview.md),

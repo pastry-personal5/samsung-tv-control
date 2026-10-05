@@ -1,6 +1,6 @@
 # P1-M4: Iced Application Shell and Navigation
 
-Status: Planned
+Status: Active
 
 ## Goal
 
@@ -45,7 +45,7 @@ Out of scope:
 ## Completion checklist
 
 - [ ] `cargo run` opens the main Iced window in Remote View.
-- [ ] No Selected TV state displays disabled controls and a Settings status;
+- [x] No Selected TV state displays disabled controls and a Settings status;
   no screen makes a network request.
 - [ ] Each of the three Sidebar items opens its matching Main Pane view and
   leaves device context unchanged and preserves the shared lower panes.
