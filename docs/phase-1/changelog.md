@@ -1,16 +1,32 @@
 # Phase 1 Changelog
 
-- 2026-10-05 — P1-M4 implementation added the Iced presentation shell with
+Status: Active
+
+## Entries
+
+- 2026-10-07 — Reviewed and corrected P1-M5 contracts: renamed the request
+  `SendRemoteAction`, retained `DeviceId` inside the safe display projection,
+  and made `PowerToggle` explicit. Removed the duplicate integration-test
+  harness. `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, and `cargo test` pass (22 tests).
+- 2026-10-07 — Planned P1-M7 through P1-M9 after P1-M6: in-memory device
+  selection with generation tracking, distinct pairing/connection state
+  projection, then typed remote-command admission policy. Each milestone is
+  limited to deterministic application and presentation behavior; transport,
+  persistence, discovery, and TV protocol work remain for later planning.
+- 2026-10-06 — Planned P1-M5 and P1-M6 as deliberately small foundation
+  milestones after the completed presentation shell. P1-M5 introduces only
+  typed domain/application control contracts. P1-M6 makes the existing
+  no-selected-TV state an application-owned control gate and projects it into
+  Iced. Neither milestone begins discovery, persistence, pairing, a network
+  connection, or Samsung protocol work. Phase 1 is Active again until these
+  planned milestones are completed.
+- 2026-10-06 — P1-M4 implementation added the Iced presentation shell with
   in-memory routing, idempotent multi-window Settings lifecycle, disabled
   no-TV controls, resizable shared messages/activity regions, and deterministic
   presentation-state tests. Cargo validation passed; native-window visual
   acceptance and sanitized screenshots remain pending on a visible macOS
   session. No network or storage service is present in the shell.
-
-Status: Active
-
-## Entries
-
 - 2026-10-05 — Completed P1-M3 after publishing the canonical UX glossary,
   information architecture, GUI interaction plan, and control/monitoring
   design. Verified Cargo format, Clippy, and test gates; `cargo test` passed

@@ -1,0 +1,40 @@
+use std::fmt;
+
+/// Opaque local identity for a saved device record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DeviceId(u64);
+
+impl DeviceId {
+    pub const fn new(id: u64) -> Self {
+        Self(id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceDisplay {
+    id: DeviceId,
+    label: String,
+}
+
+impl DeviceDisplay {
+    pub fn new(id: DeviceId, label: impl Into<String>) -> Self {
+        Self {
+            id,
+            label: label.into(),
+        }
+    }
+
+    pub const fn id(&self) -> DeviceId {
+        self.id
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+}
+
+impl fmt::Display for DeviceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "dev_{}", self.0)
+    }
+}
