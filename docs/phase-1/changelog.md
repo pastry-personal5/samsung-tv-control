@@ -97,3 +97,10 @@ Status: Active
   [security](../research/samsung-tv-protocol-security.md).
 - 2026-10-05 — Phase 1 planned with P1-M1 Initial Research and P1-M2 Initial
   Architecture.
+- 2026-10-06 — P1-M4 completed. Added keyboard focus support via Iced's default
+  focusable widget behavior, idempotent Settings window handling, and preserved
+  navigation state on window close. All sidebar navigation items route correctly
+  to their views without triggering network or device operations. The Global
+  Messages Pane implements scroll-follow behavior and resizable height. All
+  validation gates passed: `cargo fmt --all`, `cargo clippy --all-targets -- -D
+  warnings`, and `cargo test` (6 tests). No network or storage services present.

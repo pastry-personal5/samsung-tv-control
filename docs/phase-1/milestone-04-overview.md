@@ -1,6 +1,6 @@
 # P1-M4: Iced Application Shell and Navigation
 
-Status: Active
+Status: Complete
 
 ## Goal
 

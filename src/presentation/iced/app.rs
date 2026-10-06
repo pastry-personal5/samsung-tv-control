@@ -26,7 +26,7 @@ impl App {
             Message::OpenMainWindow if self.main_window.is_none() => {
                 let (main_window, open) = window::open(main_window_settings());
                 self.main_window = Some(main_window);
-                open.map(Message::MainWindowOpened)
+                Task::batch([open.map(Message::MainWindowOpened)])
             }
             Message::OpenMainWindow => Task::none(),
             Message::Navigate(view) => {
