@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use crate::State;
+
 pub const DEFAULT_MESSAGE_PANE_HEIGHT: u16 = 176;
 pub const MIN_MESSAGE_PANE_HEIGHT: u16 = 120;
 pub const MAX_MESSAGE_PANE_HEIGHT: u16 = 360;
@@ -136,11 +138,48 @@ impl MessageFeed {
     }
 }
 
+/// Projection of the application's control state into the presentation layer.
+///
+/// This exposes the no-selected-TV fact and the reason for disabled controls
+/// without exposing Iced or application implementation details.
+#[derive(Debug, Clone)]
+pub struct ControlState {
+    /// The selected device identifier, if any.
+    pub selected_device: Option<crate::DeviceId>,
+    /// Human-readable explanation for why controls are unavailable.
+    pub disabled_reason: &'static str,
+}
+
+impl ControlState {
+    /// Creates a control state projection from the application state.
+    pub fn from_application_state(app_state: &State) -> Self {
+        match app_state.selected_device() {
+            Some(device_id) => {
+                // Future milestones will provide the actual reason when device is selected
+                Self {
+                    selected_device: Some(device_id),
+                    disabled_reason: "",
+                }
+            }
+            None => Self {
+                selected_device: None,
+                disabled_reason: "No TV selected. Open Settings to choose a TV.",
+            },
+        }
+    }
+
+    /// Returns true if no TV is selected.
+    pub fn is_no_tv_selected(&self) -> bool {
+        self.selected_device.is_none()
+    }
+}
+
 #[derive(Debug)]
 pub struct ViewModel {
     primary_view: PrimaryView,
     message_pane_height: u16,
     messages: MessageFeed,
+    control_state: ControlState,
 }
 
 impl Default for ViewModel {
@@ -149,6 +188,7 @@ impl Default for ViewModel {
             primary_view: PrimaryView::Remote,
             message_pane_height: DEFAULT_MESSAGE_PANE_HEIGHT,
             messages: MessageFeed::new(MESSAGE_FEED_CAPACITY),
+            control_state: ControlState::from_application_state(&State::none()),
         }
     }
 }
@@ -177,11 +217,38 @@ impl ViewModel {
     pub fn messages_mut(&mut self) -> &mut MessageFeed {
         &mut self.messages
     }
+
+    /// Returns the control state projection.
+    pub fn control_state(&self) -> &ControlState {
+        &self.control_state
+    }
+
+    /// Updates the control state from the application state.
+    pub fn update_control_state(&mut self, app_state: &State) {
+        self.control_state = ControlState::from_application_state(app_state);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_state_has_no_selected_tv() {
+        let app_state = State::none();
+        let control_state = ControlState::from_application_state(&app_state);
+
+        assert_eq!(control_state.selected_device, None);
+        assert!(control_state.is_no_tv_selected());
+    }
+
+    #[test]
+    fn control_state_provides_disabled_reason_for_no_tv() {
+        let app_state = State::none();
+        let control_state = ControlState::from_application_state(&app_state);
+
+        assert!(!control_state.disabled_reason.is_empty());
+    }
 
     #[test]
     fn route_selection_changes_only_the_primary_view() {

@@ -1,21 +1,26 @@
 use super::message::Message;
 use super::view;
 use super::view_model::ViewModel;
+use crate::State;
 use ::iced::{Element, Size, Subscription, Task, window};
 
 pub struct App {
     main_window: Option<window::Id>,
     settings_window: Option<window::Id>,
     view_model: ViewModel,
+    app_state: State,
 }
 
 impl App {
     fn new() -> (Self, Task<Message>) {
+        let app_state = State::none();
+        let view_model = ViewModel::default();
         (
             Self {
                 main_window: None,
                 settings_window: None,
-                view_model: ViewModel::default(),
+                view_model,
+                app_state,
             },
             Task::done(Message::OpenMainWindow),
         )
@@ -70,6 +75,38 @@ impl App {
             }
             Message::FeedScrolled { at_bottom } => {
                 self.view_model.messages_mut().set_at_bottom(at_bottom);
+                Task::none()
+            }
+            Message::AttemptRemoteAction => {
+                // Attempt the remote action against the application state.
+                // This returns a typed result (e.g., NoSelectedTv).
+                // For now, we just evaluate and render the result without
+                // sending any actual command to a transport.
+                let outcome = self.app_state.attempt_remote_action(
+                    crate::SendRemoteAction::new(
+                        crate::DeviceId::new(0),
+                        crate::RemoteAction::PowerToggle,
+                    ),
+                );
+                self.view_model
+                    .messages_mut()
+                    .append(
+                        super::view_model::MessageSeverity::Information,
+                        super::view_model::MessageSource::MainWindow,
+                        format!("Remote action result: {:?}", outcome),
+                    );
+                Task::none()
+            }
+            Message::RemoteActionResult(outcome) => {
+                // Handle the result of a remote action attempt.
+                // This is a placeholder for future async dispatch paths.
+                self.view_model
+                    .messages_mut()
+                    .append(
+                        super::view_model::MessageSeverity::Information,
+                        super::view_model::MessageSource::MainWindow,
+                        format!("Remote action result: {:?}", outcome),
+                    );
                 Task::none()
             }
         }

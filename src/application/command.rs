@@ -21,6 +21,16 @@ impl SendRemoteAction {
     }
 }
 
+/// Result of attempting a remote action.
+/// 
+/// When no device is selected, all attempts return `NoSelectedTv`.
+/// Future milestones will add accepted/pending outcomes and error variants.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemoteActionOutcome {
+    /// No TV is selected; the action cannot proceed.
+    NoSelectedTv,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,5 +43,12 @@ mod tests {
 
         assert_eq!(request.target(), device_id);
         assert_eq!(request.action(), action);
+    }
+
+    #[test]
+    fn outcome_is_no_selected_tv_when_no_device() {
+        // The outcome variant exists and can be constructed/tested
+        let outcome = RemoteActionOutcome::NoSelectedTv;
+        assert_eq!(outcome, RemoteActionOutcome::NoSelectedTv);
     }
 }

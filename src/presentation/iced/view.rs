@@ -1,5 +1,5 @@
 use super::message::Message;
-use super::view_model::{MAX_MESSAGE_PANE_HEIGHT, MIN_MESSAGE_PANE_HEIGHT, PrimaryView, ViewModel};
+use super::view_model::{ControlState, MAX_MESSAGE_PANE_HEIGHT, MIN_MESSAGE_PANE_HEIGHT, PrimaryView, ViewModel};
 use ::iced::widget::{Space, button, column, container, row, scrollable, slider, text};
 use ::iced::{Alignment, Element, Length};
 
@@ -23,7 +23,7 @@ pub fn main_window(view_model: &ViewModel) -> Element<'_, Message> {
     .width(180);
 
     let main_pane = column![
-        primary_view(view_model.primary_view()),
+        primary_view(view_model.primary_view(), view_model.control_state()),
         split_bar(view_model.message_pane_height()),
         global_messages(view_model),
         activity_view(),
@@ -51,9 +51,9 @@ fn navigation_button(
         .width(Length::Fill)
 }
 
-fn primary_view(primary_view: PrimaryView) -> Element<'static, Message> {
+fn primary_view(primary_view: PrimaryView, control_state: &ControlState) -> Element<'static, Message> {
     match primary_view {
-        PrimaryView::Remote => remote_view(),
+        PrimaryView::Remote => remote_view(control_state),
         PrimaryView::Sources => empty_primary_view(
             "Sources View",
             "No TV selected. Source choices will appear after choosing a TV in Settings.",
@@ -76,8 +76,8 @@ fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'sta
         .into()
 }
 
-fn remote_view() -> Element<'static, Message> {
-    let reason = "Unavailable: no TV selected. Open Settings to choose a TV.";
+fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
+    let reason = control_state.disabled_reason;
     let disabled = |label| button(text(format!("{label} — {reason}"))).width(Length::Shrink);
 
     let directional_pad = column![
@@ -191,10 +191,7 @@ fn activity_view() -> Element<'static, Message> {
 
 pub fn settings_window() -> Element<'static, Message> {
     let severity = super::view_model::MessageSeverity::Warning;
-    let sidebar = column![text("Settings Sidebar").size(18), text("TV (current view)")]
-        .padding(16)
-        .spacing(10)
-        .width(150);
+    let sidebar = column![text("Settings Sidebar").size(18), text("TV (current view)")].padding(16).spacing(10).width(150);
 
     let main_pane = container(
         column![

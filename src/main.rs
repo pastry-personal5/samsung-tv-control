@@ -1,5 +1,5 @@
-mod presentation;
+use samsung_tv_remote::presentation::iced::app;
 
 fn main() -> iced::Result {
-    presentation::iced::app::run()
+    app::run()
 }
