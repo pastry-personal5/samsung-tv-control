@@ -1,7 +1,7 @@
 use super::message::{Message, Shortcut};
 use super::view;
 use super::view_model::{rejection_message, ViewModel};
-use crate::application::{RemoteActionOutcome, RemoteActionRejection};
+use crate::application::RemoteActionOutcome;
 use crate::State;
 use ::iced::keyboard::{self, key, Key, Modifiers};
 use ::iced::{event, window, Element, Event, Size, Subscription, Task};
@@ -92,16 +92,10 @@ impl App {
             },
             Message::AttemptRemoteAction(request) => {
                 match self.app_state.attempt_remote_action(request) {
-                    RemoteActionOutcome::Rejected {
-                        reason: RemoteActionRejection::NoSelectedTv,
-                        ..
-                    } => self.publish(
+                    RemoteActionOutcome::Rejected { reason, .. } => self.publish(
                         super::view_model::MessageSeverity::Warning,
                         super::view_model::MessageSource::MainWindow,
-                        format!(
-                            "Remote action not sent. {}",
-                            rejection_message(RemoteActionRejection::NoSelectedTv)
-                        ),
+                        format!("Remote action not sent. {}", rejection_message(reason)),
                     ),
                 }
             }

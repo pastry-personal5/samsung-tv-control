@@ -77,11 +77,13 @@ device ID. All Cargo gates passed (33 tests).
 
 ### P1-M7: In-Memory TV Selection
 
-Status: Planned
+Status: Done
 Goal: Let the application select and clear a known device in session state,
 with a generation change that prevents stale work from crossing selections.
 Plan: [overview](milestone-07-overview.md),
 [architecture](milestone-07-architecture.md)
+Notes: Safe display data and a generation-scoped in-memory selection are now
+projected into Iced; controls remain disabled until lifecycle facts exist.
 
 ### P1-M8: Connection State Projection
 

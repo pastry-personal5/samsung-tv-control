@@ -95,6 +95,11 @@ fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'sta
 fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
     let reason = control_state.disabled_reason;
     let disabled = |label| tooltip(button(label), reason, tooltip::Position::Top);
+    let selected_device = control_state
+        .selected_device
+        .as_ref()
+        .map(|device| format!("Selected TV: {}", device.label()))
+        .unwrap_or_else(|| "Selected TV: None".to_owned());
 
     let directional_pad = column![
         disabled("Up"),
@@ -107,6 +112,7 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
     container(
         column![
             text("Remote View").size(26),
+            text(selected_device),
             text(reason),
             Space::new().height(8),
             disabled("Power Toggle"),

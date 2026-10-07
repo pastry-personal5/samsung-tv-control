@@ -1,6 +1,6 @@
 # P1-M7: In-Memory TV Selection
 
-Status: Draft
+Status: Complete
 
 ## Goal
 
@@ -39,14 +39,23 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] Selection state is owned by the application and exposed through a safe
+- [x] Selection state is owned by the application and exposed through a safe
   snapshot/projection.
-- [ ] Selection, clearing, repeated selection, and generation changes have
+- [x] Selection, clearing, repeated selection, and generation changes have
   deterministic tests.
-- [ ] Device display projections and diagnostics contain no host, MAC address,
+- [x] Device display projections and diagnostics contain no host, MAC address,
   token, certificate, or raw protocol data.
-- [ ] Iced can display the selected-device projection while the application
+- [x] Iced can display the selected-device projection while the application
   remains the source of truth.
-- [ ] Run the required Cargo format, Clippy, and test gates from the
+- [x] Run the required Cargo format, Clippy, and test gates from the
   [contribution guide](../contribution-guide.md); record evidence and mark the
   milestone Done.
+
+## Acceptance evidence (2026-10-08)
+
+`State` owns a safe `DeviceDisplay` selection and generation. Different
+identities and clearing the selection advance the generation; re-selecting the
+same identity leaves both the generation and current display label unchanged.
+The Iced projection displays only the safe label and remains disabled until
+the later lifecycle state exists. Cargo format, Clippy, and test gates passed
+(36 tests), with no network or persistence work added.

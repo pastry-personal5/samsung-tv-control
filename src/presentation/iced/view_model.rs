@@ -15,6 +15,9 @@ pub(super) fn feed_is_at_bottom(content_height: f32, viewport_height: f32, offse
 pub(super) const fn rejection_message(reason: RemoteActionRejection) -> &'static str {
     match reason {
         RemoteActionRejection::NoSelectedTv => "No TV selected. Open Settings to choose a TV.",
+        RemoteActionRejection::SelectedTvNotReady => {
+            "TV selected. Pairing and connection are not available yet."
+        }
     }
 }
 
@@ -155,8 +158,10 @@ impl MessageFeed {
 /// without exposing Iced or application implementation details.
 #[derive(Debug, Clone)]
 pub struct ControlState {
-    /// The selected device identifier, if any.
-    pub selected_device: Option<crate::DeviceId>,
+    /// Safe display information for the selected device, if any.
+    pub selected_device: Option<crate::DeviceDisplay>,
+    /// The application-owned generation associated with the projection.
+    pub selection_generation: u64,
     /// Human-readable explanation for why controls are unavailable.
     pub disabled_reason: &'static str,
 }
@@ -166,7 +171,8 @@ impl ControlState {
     pub fn from_application_state(app_state: &State) -> Self {
         match app_state.control_status() {
             ControlStatus::Unavailable(reason) => Self {
-                selected_device: app_state.selected_device(),
+                selected_device: app_state.selected_device_display().cloned(),
+                selection_generation: app_state.selection_generation(),
                 disabled_reason: rejection_message(reason),
             },
         }
@@ -257,6 +263,30 @@ mod tests {
         assert_eq!(
             control_state.disabled_reason,
             rejection_message(RemoteActionRejection::NoSelectedTv)
+        );
+    }
+
+    #[test]
+    fn control_state_projects_safe_selected_device_and_generation() {
+        let mut app_state = State::none();
+        let _ = app_state.select_device(crate::DeviceDisplay::new(
+            crate::DeviceId::new(9),
+            "Studio TV",
+        ));
+
+        let control_state = ControlState::from_application_state(&app_state);
+
+        assert_eq!(
+            control_state
+                .selected_device
+                .as_ref()
+                .map(|device| device.label()),
+            Some("Studio TV")
+        );
+        assert_eq!(control_state.selection_generation, 1);
+        assert_eq!(
+            control_state.disabled_reason,
+            rejection_message(RemoteActionRejection::SelectedTvNotReady)
         );
     }
 

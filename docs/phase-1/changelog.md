@@ -4,6 +4,12 @@ Status: Active
 
 ## Entries
 
+- 2026-10-08 — Completed P1-M7. Application state now owns safe, in-memory
+  selected-device display data and a monotonic selection generation. Pure
+  select and clear transitions are idempotent for the current identity, and
+  Iced displays the safe label while controls remain disabled. Cargo format,
+  Clippy, and test gates passed (36 tests); no discovery, persistence, or
+  network behavior was added.
 - 2026-10-08 — Completed P1-M6 after reviewing the partial control gate. The
   application now rejects the original typed request with `NoSelectedTv`;
   the presentation reducer no longer manufactures a device ID or displays a

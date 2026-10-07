@@ -1,6 +1,6 @@
 # P1-M7: In-Memory TV Selection
 
-Status: Draft
+Status: Complete
 
 ## Approach
 

@@ -25,6 +25,7 @@ impl SendRemoteAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteActionRejection {
     NoSelectedTv,
+    SelectedTvNotReady,
 }
 
 /// Result of evaluating a typed remote action against application state.
