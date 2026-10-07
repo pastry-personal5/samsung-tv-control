@@ -13,8 +13,8 @@ with:
 cargo run
 ```
 
-The current package is a minimal Hello World binary; this command runs the
-scaffold and does not launch a TV remote interface.
+The current package launches the Iced GUI shell. It shows the Remote View but
+does not connect to a TV.
 
 Run individual tests while iterating with `cargo test <name>`. Do not require a
 physical TV or a local network for automated tests; use deterministic fakes for

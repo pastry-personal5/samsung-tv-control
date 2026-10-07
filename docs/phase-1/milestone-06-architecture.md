@@ -1,17 +1,18 @@
 # P1-M6: No-Selected-TV Control Gate
 
-Status: Draft
+Status: Complete
 
 ## Approach
 
-P1-M6 adds the smallest useful application state transition: control requests
-cannot proceed when no `DeviceId` is selected. The initial state deliberately
-contains `None`; it does not create a fake saved device, infer a connection, or
-provide a route around the future pairing and trust checks.
+P1-M6 adds the smallest useful application control gate: requests cannot
+proceed when no `DeviceId` is selected. The initial state represents only
+`Selection::None`; it does not create a fake saved device, infer a connection,
+or provide a route around future pairing and trust checks.
 
-The application exposes a lightweight control snapshot and a pure method that
-evaluates the P1-M5 typed remote-action request. If its selected-device field
-is absent, the method returns a typed `NoSelectedTv` rejection. It must not
+The application exposes an optional selected-device projection, a typed
+control status, and a pure method that evaluates the P1-M5 typed remote-action
+request. In the unselected state, the method returns a typed `NoSelectedTv`
+rejection with the original request. It must not
 return an accepted/pending outcome, allocate a request ID, enqueue work, or
 invoke a port. Later milestones will extend this same boundary with selection,
 connection, pairing, and capability preconditions before any dispatcher or
@@ -19,16 +20,16 @@ transport is introduced.
 
 ## Module responsibilities
 
-- `application::state` (or a narrowly named sibling): own the optional
-  selected-device state and its Iced-free snapshot/projection.
+- `application::state`: own selection state and its Iced-free optional-device
+  and control-status projections.
 - `application::command`: retain the P1-M5 request value and add only the
   result/rejection type required to express the no-selection decision.
 - `application` service/reducer: evaluate a remote-action request against the
   snapshot. Keep it synchronous and pure.
-- `presentation::iced::message`: add a presentation intent/result message for
-  a remote action without exposing Iced to the application.
+- `presentation::iced::message`: carry the typed remote-action intent without
+  exposing Iced to the application.
 - `presentation::iced::view_model`: retain a projection of the application
-  snapshot and turn `NoSelectedTv` into the accessible explanation used by
+  snapshot and turn `NoSelectedTv` into the visible explanation used by
   Remote View.
 - `presentation::iced::app` and `view`: pass intent into the pure gate and
   render the returned projection/result. They may publish a safe presentation

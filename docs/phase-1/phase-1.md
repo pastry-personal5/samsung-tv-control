@@ -49,6 +49,10 @@ Goal: Deliver a launchable Iced shell with the agreed navigation, main/settings
 windows, and shared message and activity regions.
 Plan: [overview](milestone-04-overview.md),
 [architecture](milestone-04-architecture.md)
+Notes: Native macOS acceptance verified the routes, Settings lifecycle, and
+shared panes. The owner revised shell-level accessibility acceptance to
+keyboard shortcuts and visible disabled reasons while retaining Iced; native
+screen-reader support remains a product follow-up.
 
 ### P1-M5: Typed Control Contracts
 
@@ -61,12 +65,15 @@ Notes: Implemented `DeviceId` (opaque identifier), `RemoteAction` (finite semant
 
 ### P1-M6: No-Selected-TV Control Gate
 
-Status: Planned
+Status: Done
 Goal: Project an explicit no-selected-TV application state into the existing
 shell so controls are disabled by policy rather than a presentation-only
 placeholder.
 Plan: [overview](milestone-06-overview.md),
 [architecture](milestone-06-architecture.md)
+Notes: The application now rejects typed requests with their original target
+preserved, and the shell projects the typed no-TV reason without a placeholder
+device ID. All Cargo gates passed (33 tests).
 
 ### P1-M7: In-Memory TV Selection
 

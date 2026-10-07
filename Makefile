@@ -1,10 +1,10 @@
-.PHONY: run build clean test fmt check
+.PHONY: run build clean test fmt check clippy install uninstall
 .DEFAULT_GOAL := run
 
 # Binary name from Cargo.toml
 BINARY := samsung-tv-remote
 
-run: build
+run:
 	cargo run
 
 build:
@@ -26,7 +26,8 @@ clean:
 	cargo clean
 
 install: build
-	install -D target/release/$(BINARY) /usr/local/bin/$(BINARY)
+	install -d /usr/local/bin
+	install -m 755 target/release/$(BINARY) /usr/local/bin/$(BINARY)
 
 uninstall:
 	rm -f /usr/local/bin/$(BINARY)

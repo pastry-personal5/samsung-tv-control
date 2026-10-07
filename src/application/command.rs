@@ -21,14 +21,21 @@ impl SendRemoteAction {
     }
 }
 
-/// Result of attempting a remote action.
-/// 
-/// When no device is selected, all attempts return `NoSelectedTv`.
-/// Future milestones will add accepted/pending outcomes and error variants.
+/// A reason why a remote action cannot be admitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteActionRejection {
+    NoSelectedTv,
+}
+
+/// Result of evaluating a typed remote action against application state.
+/// Rejection retains the original request so its target is never replaced by
+/// a presentation-layer placeholder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteActionOutcome {
-    /// No TV is selected; the action cannot proceed.
-    NoSelectedTv,
+    Rejected {
+        request: SendRemoteAction,
+        reason: RemoteActionRejection,
+    },
 }
 
 #[cfg(test)]
@@ -46,9 +53,19 @@ mod tests {
     }
 
     #[test]
-    fn outcome_is_no_selected_tv_when_no_device() {
-        // The outcome variant exists and can be constructed/tested
-        let outcome = RemoteActionOutcome::NoSelectedTv;
-        assert_eq!(outcome, RemoteActionOutcome::NoSelectedTv);
+    fn rejected_outcome_preserves_request_and_reason() {
+        let request = SendRemoteAction::new(DeviceId::new(7), RemoteAction::Select);
+        let outcome = RemoteActionOutcome::Rejected {
+            request: request.clone(),
+            reason: RemoteActionRejection::NoSelectedTv,
+        };
+
+        assert_eq!(
+            outcome,
+            RemoteActionOutcome::Rejected {
+                request,
+                reason: RemoteActionRejection::NoSelectedTv,
+            }
+        );
     }
 }

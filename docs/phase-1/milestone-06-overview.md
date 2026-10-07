@@ -1,6 +1,6 @@
 # P1-M6: No-Selected-TV Control Gate
 
-Status: Draft
+Status: Complete
 
 ## Goal
 
@@ -18,8 +18,8 @@ connection work without pretending that a device can be used.
 
 In scope:
 
-- Add a small application control-state projection with an explicit optional
-  selected `DeviceId` and a typed result for an attempted remote-action
+- Add a small application control-state projection that exposes an optional
+  selected `DeviceId`, plus a typed result for an attempted remote-action
   request.
 - Define the no-selection policy: every remote action is rejected before
   admission with a specific, user-presentable `NoSelectedTv` reason; no queue,
@@ -46,16 +46,26 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] The application owns a small state/snapshot whose initial value has no
+- [x] The application owns a small state/snapshot whose initial value has no
   selected TV and exposes that fact without an Iced dependency.
-- [ ] An attempted typed remote-action request with no selected TV deterministically
+- [x] An attempted typed remote-action request with no selected TV deterministically
   returns the distinct `NoSelectedTv` rejection and cannot start I/O.
-- [ ] Remote View derives its disabled control state and accessible reason from
+- [x] Remote View derives its disabled control state and visible reason from
   the application projection rather than a locally hard-coded assumption.
-- [ ] The presentation reducer can receive a typed remote-action intent and
+- [x] The presentation reducer can receive a typed remote-action intent and
   safely renders the no-selection result; disabled buttons do not emit it.
-- [ ] Unit tests cover the gate and presentation projection without a TV,
+- [x] Unit tests cover the gate and presentation projection without a TV,
   network, Iced runtime, or macOS service.
-- [ ] Run the required Cargo format, Clippy, and test gates from the
+- [x] Run the required Cargo format, Clippy, and test gates from the
   [contribution guide](../contribution-guide.md), then record the evidence in
   the phase changelog and mark this milestone Done.
+
+## Acceptance evidence (2026-10-08)
+
+`State::none()` rejects every typed remote action before dispatch and returns
+the original request with `NoSelectedTv`. The Iced reducer accepts the request
+value without constructing a synthetic target, and publishes a safe “not sent”
+message. Native macOS review confirmed the no-TV status and disabled controls
+remain visible. The Cargo format, Clippy, and test gates passed (33 tests).
+Native screen-reader control names remain the product follow-up recorded in
+the [roadmap](../roadmap.md).

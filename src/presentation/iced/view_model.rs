@@ -1,11 +1,22 @@
 use std::collections::VecDeque;
 
+use crate::application::{ControlStatus, RemoteActionRejection};
 use crate::State;
 
 pub const DEFAULT_MESSAGE_PANE_HEIGHT: u16 = 176;
 pub const MIN_MESSAGE_PANE_HEIGHT: u16 = 120;
 pub const MAX_MESSAGE_PANE_HEIGHT: u16 = 360;
 pub const MESSAGE_FEED_CAPACITY: usize = 100;
+
+pub(super) fn feed_is_at_bottom(content_height: f32, viewport_height: f32, offset: f32) -> bool {
+    (content_height - viewport_height).max(0.0) - offset <= 1.0
+}
+
+pub(super) const fn rejection_message(reason: RemoteActionRejection) -> &'static str {
+    match reason {
+        RemoteActionRejection::NoSelectedTv => "No TV selected. Open Settings to choose a TV.",
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimaryView {
@@ -113,7 +124,7 @@ impl MessageFeed {
         self.next_sequence = self.next_sequence.saturating_add(1);
 
         if self.capacity == 0 {
-            return follow;
+            return false;
         }
 
         if self.entries.len() == self.capacity {
@@ -153,17 +164,10 @@ pub struct ControlState {
 impl ControlState {
     /// Creates a control state projection from the application state.
     pub fn from_application_state(app_state: &State) -> Self {
-        match app_state.selected_device() {
-            Some(device_id) => {
-                // Future milestones will provide the actual reason when device is selected
-                Self {
-                    selected_device: Some(device_id),
-                    disabled_reason: "",
-                }
-            }
-            None => Self {
-                selected_device: None,
-                disabled_reason: "No TV selected. Open Settings to choose a TV.",
+        match app_state.control_status() {
+            ControlStatus::Unavailable(reason) => Self {
+                selected_device: app_state.selected_device(),
+                disabled_reason: rejection_message(reason),
             },
         }
     }
@@ -184,16 +188,19 @@ pub struct ViewModel {
 
 impl Default for ViewModel {
     fn default() -> Self {
-        Self {
-            primary_view: PrimaryView::Remote,
-            message_pane_height: DEFAULT_MESSAGE_PANE_HEIGHT,
-            messages: MessageFeed::new(MESSAGE_FEED_CAPACITY),
-            control_state: ControlState::from_application_state(&State::none()),
-        }
+        Self::new(&State::none())
     }
 }
 
 impl ViewModel {
+    pub fn new(app_state: &State) -> Self {
+        Self {
+            primary_view: PrimaryView::Remote,
+            message_pane_height: DEFAULT_MESSAGE_PANE_HEIGHT,
+            messages: MessageFeed::new(MESSAGE_FEED_CAPACITY),
+            control_state: ControlState::from_application_state(app_state),
+        }
+    }
     pub fn primary_view(&self) -> PrimaryView {
         self.primary_view
     }
@@ -247,20 +254,36 @@ mod tests {
         let app_state = State::none();
         let control_state = ControlState::from_application_state(&app_state);
 
-        assert!(!control_state.disabled_reason.is_empty());
+        assert_eq!(
+            control_state.disabled_reason,
+            rejection_message(RemoteActionRejection::NoSelectedTv)
+        );
     }
 
     #[test]
     fn route_selection_changes_only_the_primary_view() {
         let mut view_model = ViewModel::default();
-
-        view_model.select_view(PrimaryView::Sources);
-        assert_eq!(view_model.primary_view(), PrimaryView::Sources);
-        assert_eq!(
-            view_model.message_pane_height(),
-            DEFAULT_MESSAGE_PANE_HEIGHT
+        let _ = view_model.messages_mut().append(
+            MessageSeverity::Information,
+            MessageSource::MainWindow,
+            "Keep this message",
         );
-        assert!(view_model.messages().entries().is_empty());
+
+        for route in [
+            PrimaryView::Sources,
+            PrimaryView::Apps,
+            PrimaryView::TextInput,
+            PrimaryView::Remote,
+        ] {
+            view_model.select_view(route);
+            assert_eq!(view_model.primary_view(), route);
+            assert_eq!(
+                view_model.message_pane_height(),
+                DEFAULT_MESSAGE_PANE_HEIGHT
+            );
+            assert_eq!(view_model.messages().entries().len(), 1);
+            assert!(view_model.control_state().is_no_tv_selected());
+        }
     }
 
     #[test]
@@ -306,6 +329,13 @@ mod tests {
 
         feed.set_at_bottom(true);
         assert_eq!(feed.unread_count(), 0);
+    }
+
+    #[test]
+    fn feed_bottom_detection_uses_pixel_distance() {
+        assert!(feed_is_at_bottom(100.0, 200.0, 0.0));
+        assert!(feed_is_at_bottom(10_000.0, 100.0, 9_899.5));
+        assert!(!feed_is_at_bottom(10_000.0, 100.0, 9_890.0));
     }
 
     #[test]

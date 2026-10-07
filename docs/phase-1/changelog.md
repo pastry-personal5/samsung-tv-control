@@ -4,6 +4,29 @@ Status: Active
 
 ## Entries
 
+- 2026-10-08 — Completed P1-M6 after reviewing the partial control gate. The
+  application now rejects the original typed request with `NoSelectedTv`;
+  the presentation reducer no longer manufactures a device ID or displays a
+  debug-formatted outcome. Remote View derives its disabled reason from the
+  application state. Native macOS review showed the same no-TV shell, and
+  Cargo format, Clippy, and test gates passed (33 tests). Also corrected the
+  stale README and macOS Makefile recipes.
+- 2026-10-08 — Owner chose to preserve Iced and revise P1-M4's shell-level
+  accessibility criterion to keyboard shortcuts and visible disabled reasons.
+  Marked P1-M4 Done after native macOS visual review and the required Cargo
+  gates passed (31 tests). Iced controls remain absent from the macOS
+  accessibility tree; native screen-reader support is a product follow-up.
+  Removed an earlier duplicate completion entry that incorrectly claimed
+  Iced's default button and slider keyboard focus.
+- 2026-10-08 — Reopened P1-M4 acceptance after a native macOS review. Added a
+  route back to Remote, kept the lower panes visible when primary content
+  overflows, tightened message scroll-follow detection, and guarded against a
+  delayed Settings open event restoring a closed window. Added keyboard
+  shortcuts for views, Settings, and pane height. The app launches; the routes,
+  Settings lifecycle, and lower panes were checked in a native macOS session,
+  including the minimum window size. Iced 0.14 does not expose these controls
+  to the macOS accessibility tree in this build, so focus and accessible-name
+  acceptance remain open.
 - 2026-10-07 — Reviewed and corrected P1-M5 contracts: renamed the request
   `SendRemoteAction`, retained `DeviceId` inside the safe display projection,
   and made `PowerToggle` explicit. Removed the duplicate integration-test
@@ -113,10 +136,3 @@ Status: Active
   [security](../research/samsung-tv-protocol-security.md).
 - 2026-10-05 — Phase 1 planned with P1-M1 Initial Research and P1-M2 Initial
   Architecture.
-- 2026-10-06 — P1-M4 completed. Added keyboard focus support via Iced's default
-  focusable widget behavior, idempotent Settings window handling, and preserved
-  navigation state on window close. All sidebar navigation items route correctly
-  to their views without triggering network or device operations. The Global
-  Messages Pane implements scroll-follow behavior and resizable height. All
-  validation gates passed: `cargo fmt --all`, `cargo clippy --all-targets -- -D
-  warnings`, and `cargo test` (6 tests). No network or storage services present.

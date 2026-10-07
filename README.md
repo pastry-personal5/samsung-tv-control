@@ -6,8 +6,9 @@ It is intended to provide responsive, keyboard-friendly control of compatible Sa
 
 ## Status
 
-The repository has a minimal Rust crate. The macOS interface and device
-protocol implementation have not been built yet.
+The repository has a native Iced GUI shell with Remote, Sources, Apps, Text
+Input, and Settings views. Device discovery, pairing, connection, and remote
+commands are not implemented yet.
 
 ## Technology and architecture
 
@@ -18,8 +19,8 @@ records the design findings and implementation checks.
 
 The current UX plan defines [canonical terms](docs/ux-term.md), the
 [information architecture](docs/planned-information-architecture.md), and the
-[planned GUI](docs/ux-gui.md). These are design documents; the GUI has not yet
-been implemented.
+[planned GUI](docs/ux-gui.md). These documents guide the current shell and
+later device behavior.
 
 ## Development
 

@@ -1,8 +1,10 @@
-use super::message::Message;
+use super::message::{Message, Shortcut};
 use super::view;
-use super::view_model::ViewModel;
+use super::view_model::{rejection_message, ViewModel};
+use crate::application::{RemoteActionOutcome, RemoteActionRejection};
 use crate::State;
-use ::iced::{Element, Size, Subscription, Task, window};
+use ::iced::keyboard::{self, key, Key, Modifiers};
+use ::iced::{event, window, Element, Event, Size, Subscription, Task};
 
 pub struct App {
     main_window: Option<window::Id>,
@@ -14,7 +16,7 @@ pub struct App {
 impl App {
     fn new() -> (Self, Task<Message>) {
         let app_state = State::none();
-        let view_model = ViewModel::default();
+        let view_model = ViewModel::new(&app_state);
         (
             Self {
                 main_window: None,
@@ -51,14 +53,8 @@ impl App {
                 ])
             }
             Message::OpenSettings => Task::none(),
-            Message::MainWindowOpened(id) => {
-                self.main_window = Some(id);
-                Task::none()
-            }
-            Message::SettingsWindowOpened(id) => {
-                self.settings_window = Some(id);
-                Task::none()
-            }
+            Message::MainWindowOpened(_) => Task::none(),
+            Message::SettingsWindowOpened(_) => Task::none(),
             Message::WindowClosed(id) if self.main_window == Some(id) => ::iced::exit(),
             Message::WindowClosed(id) if self.settings_window == Some(id) => {
                 self.settings_window = None;
@@ -77,37 +73,37 @@ impl App {
                 self.view_model.messages_mut().set_at_bottom(at_bottom);
                 Task::none()
             }
-            Message::AttemptRemoteAction => {
-                // Attempt the remote action against the application state.
-                // This returns a typed result (e.g., NoSelectedTv).
-                // For now, we just evaluate and render the result without
-                // sending any actual command to a transport.
-                let outcome = self.app_state.attempt_remote_action(
-                    crate::SendRemoteAction::new(
-                        crate::DeviceId::new(0),
-                        crate::RemoteAction::PowerToggle,
+            Message::Shortcut { window, shortcut } => match shortcut {
+                Shortcut::Navigate(route) if self.main_window == Some(window) => {
+                    self.update(Message::Navigate(route))
+                }
+                Shortcut::OpenSettings => self.update(Message::OpenSettings),
+                Shortcut::GrowMessages if self.main_window == Some(window) => {
+                    self.update(Message::ResizeMessages(
+                        self.view_model.message_pane_height().saturating_add(16),
+                    ))
+                }
+                Shortcut::ShrinkMessages if self.main_window == Some(window) => {
+                    self.update(Message::ResizeMessages(
+                        self.view_model.message_pane_height().saturating_sub(16),
+                    ))
+                }
+                _ => Task::none(),
+            },
+            Message::AttemptRemoteAction(request) => {
+                match self.app_state.attempt_remote_action(request) {
+                    RemoteActionOutcome::Rejected {
+                        reason: RemoteActionRejection::NoSelectedTv,
+                        ..
+                    } => self.publish(
+                        super::view_model::MessageSeverity::Warning,
+                        super::view_model::MessageSource::MainWindow,
+                        format!(
+                            "Remote action not sent. {}",
+                            rejection_message(RemoteActionRejection::NoSelectedTv)
+                        ),
                     ),
-                );
-                self.view_model
-                    .messages_mut()
-                    .append(
-                        super::view_model::MessageSeverity::Information,
-                        super::view_model::MessageSource::MainWindow,
-                        format!("Remote action result: {:?}", outcome),
-                    );
-                Task::none()
-            }
-            Message::RemoteActionResult(outcome) => {
-                // Handle the result of a remote action attempt.
-                // This is a placeholder for future async dispatch paths.
-                self.view_model
-                    .messages_mut()
-                    .append(
-                        super::view_model::MessageSeverity::Information,
-                        super::view_model::MessageSource::MainWindow,
-                        format!("Remote action result: {:?}", outcome),
-                    );
-                Task::none()
+                }
             }
         }
     }
@@ -129,7 +125,10 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        window::close_events().map(Message::WindowClosed)
+        Subscription::batch([
+            window::close_events().map(Message::WindowClosed),
+            event::listen_with(shortcut_event),
+        ])
     }
 
     fn publish(
@@ -147,6 +146,49 @@ impl App {
         } else {
             Task::none()
         }
+    }
+}
+
+fn shortcut_event(event: Event, status: event::Status, window: window::Id) -> Option<Message> {
+    if status != event::Status::Ignored {
+        return None;
+    }
+
+    let Event::Keyboard(keyboard::Event::KeyPressed {
+        key,
+        modifiers,
+        repeat: false,
+        ..
+    }) = event
+    else {
+        return None;
+    };
+
+    shortcut_for(&key, modifiers).map(|shortcut| Message::Shortcut { window, shortcut })
+}
+
+fn shortcut_for(key: &Key, modifiers: Modifiers) -> Option<Shortcut> {
+    if !modifiers.command() || modifiers.alt() {
+        return None;
+    }
+
+    if modifiers.shift() {
+        return match key {
+            Key::Named(key::Named::ArrowUp) => Some(Shortcut::GrowMessages),
+            Key::Named(key::Named::ArrowDown) => Some(Shortcut::ShrinkMessages),
+            _ => None,
+        };
+    }
+
+    match key.as_ref() {
+        Key::Character("1") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Remote)),
+        Key::Character("2") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Sources)),
+        Key::Character("3") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Apps)),
+        Key::Character("4") => Some(Shortcut::Navigate(
+            super::view_model::PrimaryView::TextInput,
+        )),
+        Key::Character(",") => Some(Shortcut::OpenSettings),
+        _ => None,
     }
 }
 
@@ -213,5 +255,86 @@ mod tests {
             super::super::view_model::PrimaryView::Apps
         );
         assert_eq!(app.view_model.messages().entries().len(), 3);
+    }
+
+    #[test]
+    fn delayed_window_open_event_does_not_restore_closed_settings() {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::OpenSettings);
+        let settings_id = app.settings_window.expect("settings window");
+
+        let _ = app.update(Message::WindowClosed(settings_id));
+        let _ = app.update(Message::SettingsWindowOpened(settings_id));
+
+        assert!(app.settings_window.is_none());
+    }
+
+    #[test]
+    fn keyboard_shortcuts_require_command_and_match_routes_and_resize() {
+        let command = Modifiers::COMMAND;
+        assert_eq!(
+            shortcut_for(&Key::Character("4".into()), command),
+            Some(Shortcut::Navigate(
+                super::super::view_model::PrimaryView::TextInput
+            ))
+        );
+        assert_eq!(
+            shortcut_for(&Key::Character(",".into()), command),
+            Some(Shortcut::OpenSettings)
+        );
+        assert_eq!(
+            shortcut_for(&Key::Named(key::Named::ArrowUp), command | Modifiers::SHIFT),
+            Some(Shortcut::GrowMessages)
+        );
+        assert_eq!(
+            shortcut_for(&Key::Character("1".into()), Modifiers::NONE),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_shortcut_from_settings_does_not_change_main_route() {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::OpenMainWindow);
+        let _ = app.update(Message::OpenSettings);
+        let settings_id = app.settings_window.expect("settings window");
+
+        let _ = app.update(Message::Shortcut {
+            window: settings_id,
+            shortcut: Shortcut::Navigate(super::super::view_model::PrimaryView::Sources),
+        });
+
+        assert_eq!(
+            app.view_model.primary_view(),
+            super::super::view_model::PrimaryView::Remote
+        );
+    }
+
+    #[test]
+    fn remote_intent_rejection_is_safe_and_does_not_change_control_state() {
+        let (mut app, _) = App::new();
+        let request = crate::SendRemoteAction::new(
+            crate::DeviceId::new(42),
+            crate::RemoteAction::PowerToggle,
+        );
+
+        let _ = app.update(Message::AttemptRemoteAction(request));
+
+        let entry = app
+            .view_model
+            .messages()
+            .entries()
+            .back()
+            .expect("rejection message");
+        assert_eq!(
+            entry.severity,
+            super::super::view_model::MessageSeverity::Warning
+        );
+        assert_eq!(
+            entry.text,
+            "Remote action not sent. No TV selected. Open Settings to choose a TV."
+        );
+        assert!(!entry.text.contains("dev_"));
+        assert_eq!(app.app_state.selected_device(), None);
     }
 }

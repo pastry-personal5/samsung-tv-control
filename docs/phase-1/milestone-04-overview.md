@@ -44,22 +44,47 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] `cargo run` opens the main Iced window in Remote View.
+- [x] `cargo run` opens the main Iced window in Remote View.
 - [x] No Selected TV state displays disabled controls and a Settings status;
   no screen makes a network request.
-- [ ] Each of the three Sidebar items opens its matching Main Pane view and
+- [x] Each of the three Sidebar items opens its matching Main Pane view and
   leaves device context unchanged and preserves the shared lower panes.
-- [ ] Settings opens as a separate window, does not duplicate on repeated
+- [x] Settings opens as a separate window, does not duplicate on repeated
   activation, and can close without closing the main window. Its discovery
   entry point is visibly unavailable and makes no network request.
-- [ ] The Global Messages Pane starts at about eight text lines, can be resized
+- [x] The Global Messages Pane starts at about eight text lines, can be resized
   with the split bar, and follows new messages only when the user is already
   at the bottom. The Activity View remains visible below it.
-- [ ] Keyboard focus, accessible names, and disabled reasons work across
-  Sidebar items, window controls, and the split bar.
-- [ ] Tests cover view routing and window lifecycle policy; empty states are
+- [x] The shell provides keyboard shortcuts for the four views, Settings, and
+  message-pane resizing. Disabled actions show a visible reason and tooltips.
+- [x] Tests cover view routing and window lifecycle policy; empty states are
   verified for each view.
-- [ ] Run the required Cargo format, Clippy, and test gates from the
-  [contribution guide](../contribution-guide.md); attach a sanitized screenshot
-  of the main and Settings windows to the change review.
-- [ ] Update the phase status and changelog with acceptance evidence.
+- [x] Run the required Cargo format, Clippy, and test gates from the
+  [contribution guide](../contribution-guide.md).
+- [x] Visually inspect the main and Settings windows in a native macOS session,
+  including a constrained main window.
+- [x] Update the phase status and changelog with acceptance evidence.
+
+## Acceptance evidence (2026-10-08)
+
+The macOS QA build opened in Remote View. Native interaction verified Sources,
+Apps, and Text Input empty states; the shared message and activity panes
+remained visible. Settings opened with `⌘,` and closed while the main window
+remained available. At the 700×560 minimum window size, the primary view
+scrolled and the lower panes remained visible. `⌘1`–`⌘4` navigated among
+views, and `⌘⇧↑` increased the message pane height. Tests cover route state,
+Settings lifecycle, bounded feed ordering, scroll-follow policy, and shortcut
+mapping.
+
+## Accessibility follow-up
+
+The owner chose to preserve Iced and revise this shell milestone's acceptance
+to the keyboard shortcuts and visible disabled reasons verified above. In the
+current Iced 0.14 build, macOS exposes the app window in its accessibility tree
+but does not expose the buttons or slider. Native keyboard focus order and
+screen-reader control names remain product accessibility work before release;
+this milestone does not claim them.
+
+When a change review is opened, attach sanitized main and Settings screenshots
+as required by the [contribution guide](../contribution-guide.md). No change
+review was opened for this milestone completion pass.

@@ -10,7 +10,8 @@ behavior and hierarchy specification, not a pixel mockup. See the canonical
 
 The main app window has two main parts:
 
-- **Sidebar** on the left. It contains **Sources**, **Apps**, and **Text Input**.
+- **Sidebar** on the left. It contains **Remote**, **Sources**, **Apps**, and
+  **Text Input**, so the user can return to the startup view after navigating.
   The **Main Toolbar** is anchored at the bottom of the Sidebar and contains
   the **Settings button**.
 - **Main Pane** on the right. It opens to the **Remote View**. Clicking Sources,
@@ -26,6 +27,7 @@ TBD.
 ```text
 ┌─────────────────────┬─────────────────────────────────────┐
 │ Sidebar             │ Main Pane: Remote View              │
+│ Remote              │                                     │
 │ Sources             │                                     │
 │ Apps                │                                     │
 │ Text Input          │                                     │
@@ -70,8 +72,9 @@ Activity View remain in the Main Pane below it.
 
 ## Main Pane navigation
 
-**Sources** opens Sources View, **Apps** opens Apps View, and **Text Input**
-opens Text Input View. Each view targets the current Selected TV and uses the
+**Remote** returns to Remote View. **Sources** opens Sources View, **Apps**
+opens Apps View, and **Text Input** opens Text Input View. Each view targets the
+current Selected TV and uses the
 same Pairing, Connection, capability, request feedback, Global Messages Pane,
 and Activity View as Remote View. Changing views does not switch TVs or open a
 second Connection. Keep the Settings button in the Main Toolbar available from

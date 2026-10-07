@@ -10,6 +10,12 @@ The shell must run without a TV, network permission, preferences, or Keychain
 access. It demonstrates navigation and window ownership; it does not imitate
 successful TV behavior.
 
+The native review found that stock Iced 0.14 buttons and sliders do not appear
+as controls in the macOS accessibility tree. The owner retained Iced for this
+shell milestone. App-level shortcuts provide keyboard navigation, Settings
+access, and message-pane resizing; native screen-reader support remains a
+separate product accessibility follow-up.
+
 Iced 0.14 supports multiple windows under one application state. Use one Iced
 application to keep navigation, window IDs, and the session-only Global
 Messages feed shared. The Iced multi-window example demonstrates opening

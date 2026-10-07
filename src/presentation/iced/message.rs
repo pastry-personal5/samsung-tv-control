@@ -1,5 +1,5 @@
 use super::view_model::PrimaryView;
-use crate::application::command::RemoteActionOutcome;
+use crate::application::SendRemoteAction;
 use ::iced::window;
 
 #[derive(Debug, Clone)]
@@ -11,12 +11,21 @@ pub enum Message {
     SettingsWindowOpened(window::Id),
     WindowClosed(window::Id),
     ResizeMessages(u16),
-    FeedScrolled { at_bottom: bool },
-    /// Remote action intent to send to the application layer.
-    /// When the user attempts to use a remote control, this message
-    /// is dispatched to the presentation reducer which evaluates
-    /// the request against the application state.
-    AttemptRemoteAction,
-    /// Result of a remote action attempt from the application layer.
-    RemoteActionResult(RemoteActionOutcome),
+    FeedScrolled {
+        at_bottom: bool,
+    },
+    Shortcut {
+        window: window::Id,
+        shortcut: Shortcut,
+    },
+    /// Typed remote action intent; disabled controls never emit it.
+    AttemptRemoteAction(SendRemoteAction),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shortcut {
+    Navigate(PrimaryView),
+    OpenSettings,
+    GrowMessages,
+    ShrinkMessages,
 }
