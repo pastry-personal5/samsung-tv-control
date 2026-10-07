@@ -1,6 +1,6 @@
 # P1-M9: Remote Command Admission Policy
 
-Status: Draft
+Status: Complete
 
 ## Goal
 
@@ -38,16 +38,26 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] Every remote request is checked against the authoritative application
+- [x] Every remote request is checked against the authoritative application
   snapshot before it can leave the policy boundary.
-- [ ] Rejections are distinct and deterministic, with no accepted result for
+- [x] Rejections are distinct and deterministic, with no accepted result for
   absent, stale, unpaired, or disconnected targets.
-- [ ] The eligible result is clearly documented as a policy decision only;
+- [x] The eligible result is clearly documented as a policy decision only;
   no network work or success message follows from it.
-- [ ] Iced projects enabled state and accessible rejection reasons from the
+- [x] Iced projects enabled state and visible rejection reasons from the
   same application policy result.
-- [ ] Tests cover each rejection, target/generation checks, and the eligible
+- [x] Tests cover each rejection, target/generation checks, and the eligible
   case without I/O.
-- [ ] Run the required Cargo format, Clippy, and test gates from the
+- [x] Run the required Cargo format, Clippy, and test gates from the
   [contribution guide](../contribution-guide.md); record evidence and mark the
   milestone Done.
+
+## Acceptance evidence (2026-10-08)
+
+`SendRemoteAction` now retains the observed selection generation as well as
+the target and semantic action. `State::evaluate_remote_action` returns one of
+the distinct no-selection, wrong-target, stale-generation, pairing-required,
+or not-connected rejections—or `Eligible` only when all local preconditions
+pass. The eligible result performs no I/O and causes no sent/confirmed UI
+message. Iced derives button availability and its visible rejection guidance
+from that same policy. Cargo format, Clippy, and test gates passed (40 tests).

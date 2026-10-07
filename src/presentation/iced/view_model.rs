@@ -15,9 +15,11 @@ pub(super) fn feed_is_at_bottom(content_height: f32, viewport_height: f32, offse
 pub(super) const fn rejection_message(reason: RemoteActionRejection) -> &'static str {
     match reason {
         RemoteActionRejection::NoSelectedTv => "No TV selected. Open Settings to choose a TV.",
-        RemoteActionRejection::SelectedTvNotReady => {
-            "TV selected. Pairing and connection are not available yet."
+        RemoteActionRejection::WrongTarget | RemoteActionRejection::StaleSelectionGeneration => {
+            "TV selection changed. Use the current TV before sending remote actions."
         }
+        RemoteActionRejection::PairingRequired => "Pair this TV before sending remote actions.",
+        RemoteActionRejection::NotConnected => "Connect to this TV before sending remote actions.",
     }
 }
 
@@ -211,7 +213,7 @@ pub struct ControlState {
     /// The application-owned generation associated with the projection.
     pub selection_generation: u64,
     /// Human-readable explanation for why controls are unavailable.
-    pub disabled_reason: &'static str,
+    pub disabled_reason: Option<&'static str>,
     /// Pairing lifecycle text derived from application state.
     pub pairing: LifecycleStatusText,
     /// Connection lifecycle text derived from application state.
@@ -221,13 +223,25 @@ pub struct ControlState {
 impl ControlState {
     /// Creates a control state projection from the application state.
     pub fn from_application_state(app_state: &State) -> Self {
+        let selected_device = app_state.selected_device_display().cloned();
+        let selection_generation = app_state.selection_generation();
+        let pairing = pairing_status_text(app_state.pairing_state());
+        let connection = connection_status_text(app_state.connection_state());
+
         match app_state.control_status() {
+            ControlStatus::Available => Self {
+                selected_device,
+                selection_generation,
+                disabled_reason: None,
+                pairing,
+                connection,
+            },
             ControlStatus::Unavailable(reason) => Self {
-                selected_device: app_state.selected_device_display().cloned(),
-                selection_generation: app_state.selection_generation(),
-                disabled_reason: rejection_message(reason),
-                pairing: pairing_status_text(app_state.pairing_state()),
-                connection: connection_status_text(app_state.connection_state()),
+                selected_device,
+                selection_generation,
+                disabled_reason: Some(rejection_message(reason)),
+                pairing,
+                connection,
             },
         }
     }
@@ -235,6 +249,10 @@ impl ControlState {
     /// Returns true if no TV is selected.
     pub fn is_no_tv_selected(&self) -> bool {
         self.selected_device.is_none()
+    }
+
+    pub fn remote_actions_enabled(&self) -> bool {
+        self.disabled_reason.is_none()
     }
 }
 
@@ -316,7 +334,7 @@ mod tests {
 
         assert_eq!(
             control_state.disabled_reason,
-            rejection_message(RemoteActionRejection::NoSelectedTv)
+            Some(rejection_message(RemoteActionRejection::NoSelectedTv))
         );
     }
 
@@ -340,7 +358,7 @@ mod tests {
         assert_eq!(control_state.selection_generation, 1);
         assert_eq!(
             control_state.disabled_reason,
-            rejection_message(RemoteActionRejection::SelectedTvNotReady)
+            Some(rejection_message(RemoteActionRejection::PairingRequired))
         );
     }
 
@@ -364,6 +382,25 @@ mod tests {
             control_state.connection.guidance,
             "Wait for the connection to finish before sending remote actions."
         );
+    }
+
+    #[test]
+    fn control_state_enables_only_when_the_application_policy_is_eligible() {
+        let mut app_state = State::none();
+        let _ = app_state.select_device(crate::DeviceDisplay::new(
+            crate::DeviceId::new(9),
+            "Studio TV",
+        ));
+        let generation = app_state.selection_generation();
+
+        assert!(!ControlState::from_application_state(&app_state).remote_actions_enabled());
+        let _ = app_state.set_pairing_state(generation, PairingState::Ready);
+        assert!(!ControlState::from_application_state(&app_state).remote_actions_enabled());
+        let _ = app_state.set_connection_state(generation, ConnectionState::Ready);
+
+        let control_state = ControlState::from_application_state(&app_state);
+        assert!(control_state.remote_actions_enabled());
+        assert_eq!(control_state.disabled_reason, None);
     }
 
     #[test]

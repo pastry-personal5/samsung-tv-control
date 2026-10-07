@@ -5,27 +5,28 @@ use samsung_tv_remote::{
 };
 
 #[test]
-fn send_remote_action_preserves_its_target_and_action() {
+fn send_remote_action_preserves_its_target_generation_and_action() {
     let device_id = DeviceId::new(1);
     let action = RemoteAction::PowerToggle;
-    let request = SendRemoteAction::new(device_id, action);
+    let request = SendRemoteAction::new(device_id, 4, action);
 
     assert_eq!(request.target(), device_id);
+    assert_eq!(request.selection_generation(), 4);
     assert_eq!(request.action(), action);
 }
 
 #[test]
 fn requests_with_different_targets_are_not_equal() {
-    let cmd1 = SendRemoteAction::new(DeviceId::new(1), RemoteAction::PowerToggle);
-    let cmd2 = SendRemoteAction::new(DeviceId::new(2), RemoteAction::PowerToggle);
+    let cmd1 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
+    let cmd2 = SendRemoteAction::new(DeviceId::new(2), 1, RemoteAction::PowerToggle);
 
     assert_ne!(cmd1, cmd2);
 }
 
 #[test]
 fn requests_with_different_actions_are_not_equal() {
-    let cmd1 = SendRemoteAction::new(DeviceId::new(1), RemoteAction::PowerToggle);
-    let cmd2 = SendRemoteAction::new(DeviceId::new(1), RemoteAction::Up);
+    let cmd1 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
+    let cmd2 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::Up);
 
     assert_ne!(cmd1, cmd2);
 }
@@ -47,7 +48,7 @@ fn send_remote_action_accepts_each_supported_semantic_action() {
         RemoteAction::VolumeUp,
         RemoteAction::VolumeDown,
     ] {
-        let request = SendRemoteAction::new(device_id, action);
+        let request = SendRemoteAction::new(device_id, 1, action);
         assert_eq!(request.target(), device_id);
         assert_eq!(request.action(), action);
     }
@@ -74,10 +75,10 @@ fn unselected_state_rejects_each_request_without_changing_its_target() {
     .enumerate()
     {
         let id = DeviceId::new(index as u64 + 1);
-        let request = SendRemoteAction::new(id, action);
+        let request = SendRemoteAction::new(id, 0, action);
 
         assert_eq!(
-            state.attempt_remote_action(request.clone()),
+            state.evaluate_remote_action(request.clone()),
             RemoteActionOutcome::Rejected {
                 request,
                 reason: RemoteActionRejection::NoSelectedTv,

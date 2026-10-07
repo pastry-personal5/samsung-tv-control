@@ -1,6 +1,6 @@
 # Phase 1: Foundation and Architecture
 
-Status: Active
+Status: Done
 Goal: Establish the validated product, technical, and UX direction required to
 begin building the Rust macOS Samsung TV remote.
 
@@ -97,8 +97,10 @@ and connection statuses; selection changes reset both facts.
 
 ### P1-M9: Remote Command Admission Policy
 
-Status: Planned
+Status: Done
 Goal: Apply selected-device, pairing, connection, and known-action policy to
 typed remote requests before any transport dispatch exists.
 Plan: [overview](milestone-09-overview.md),
 [architecture](milestone-09-architecture.md)
+Notes: A pure policy now returns typed rejections or an explicitly non-sending
+eligible result; Iced availability derives from the same state.

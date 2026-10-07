@@ -91,12 +91,13 @@ impl App {
                 _ => Task::none(),
             },
             Message::AttemptRemoteAction(request) => {
-                match self.app_state.attempt_remote_action(request) {
+                match self.app_state.evaluate_remote_action(request) {
                     RemoteActionOutcome::Rejected { reason, .. } => self.publish(
                         super::view_model::MessageSeverity::Warning,
                         super::view_model::MessageSource::MainWindow,
                         format!("Remote action not sent. {}", rejection_message(reason)),
                     ),
+                    RemoteActionOutcome::Eligible(_) => Task::none(),
                 }
             }
         }
@@ -309,6 +310,7 @@ mod tests {
         let (mut app, _) = App::new();
         let request = crate::SendRemoteAction::new(
             crate::DeviceId::new(42),
+            0,
             crate::RemoteAction::PowerToggle,
         );
 
@@ -330,5 +332,32 @@ mod tests {
         );
         assert!(!entry.text.contains("dev_"));
         assert_eq!(app.app_state.selected_device(), None);
+    }
+
+    #[test]
+    fn eligible_remote_intent_does_not_claim_it_was_sent() {
+        let (mut app, _) = App::new();
+        let _ = app.app_state.select_device(crate::DeviceDisplay::new(
+            crate::DeviceId::new(42),
+            "Studio TV",
+        ));
+        let generation = app.app_state.selection_generation();
+        let _ = app
+            .app_state
+            .set_pairing_state(generation, crate::application::PairingState::Ready);
+        let _ = app
+            .app_state
+            .set_connection_state(generation, crate::application::ConnectionState::Ready);
+        app.view_model.update_control_state(&app.app_state);
+
+        let request = crate::SendRemoteAction::new(
+            crate::DeviceId::new(42),
+            generation,
+            crate::RemoteAction::PowerToggle,
+        );
+        let _ = app.update(Message::AttemptRemoteAction(request));
+
+        assert!(app.view_model.messages().entries().is_empty());
+        assert!(app.view_model.control_state().remote_actions_enabled());
     }
 }

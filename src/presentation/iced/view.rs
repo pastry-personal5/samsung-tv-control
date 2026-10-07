@@ -3,6 +3,7 @@ use super::view_model::{
     feed_is_at_bottom, ControlState, PrimaryView, ViewModel, MAX_MESSAGE_PANE_HEIGHT,
     MIN_MESSAGE_PANE_HEIGHT,
 };
+use crate::{RemoteAction, SendRemoteAction};
 use ::iced::widget::{button, column, container, row, scrollable, slider, text, tooltip, Space};
 use ::iced::{Alignment, Element, Length};
 
@@ -93,8 +94,9 @@ fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'sta
 }
 
 fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
-    let reason = control_state.disabled_reason;
-    let disabled = |label| tooltip(button(label), reason, tooltip::Position::Top);
+    let availability = control_state
+        .disabled_reason
+        .unwrap_or("Remote controls are ready. Actions are not sent by this shell.");
     let selected_device = control_state
         .selected_device
         .as_ref()
@@ -102,9 +104,14 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
         .unwrap_or_else(|| "Selected TV: None".to_owned());
 
     let directional_pad = column![
-        disabled("Up"),
-        row![disabled("Left"), disabled("Enter"), disabled("Right")].spacing(8),
-        disabled("Down"),
+        remote_button("Up", RemoteAction::Up, control_state),
+        row![
+            remote_button("Left", RemoteAction::Left, control_state),
+            remote_button("Enter", RemoteAction::Select, control_state),
+            remote_button("Right", RemoteAction::Right, control_state)
+        ]
+        .spacing(8),
+        remote_button("Down", RemoteAction::Down, control_state),
     ]
     .align_x(Alignment::Center)
     .spacing(8);
@@ -117,17 +124,25 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
             text(control_state.pairing.guidance),
             text(format!("Connection: {}", control_state.connection.label)),
             text(control_state.connection.guidance),
-            text(reason),
+            text(availability),
             Space::new().height(8),
-            disabled("Power Toggle"),
+            remote_button("Power Toggle", RemoteAction::PowerToggle, control_state),
             directional_pad,
-            row![disabled("Back"), disabled("Home")].spacing(8),
-            text("Volume"),
-            disabled("Volume Slider"),
             row![
-                disabled("Mute"),
-                disabled("Volume Down"),
-                disabled("Volume Up")
+                remote_button("Back", RemoteAction::Back, control_state),
+                remote_button("Home", RemoteAction::Home, control_state)
+            ]
+            .spacing(8),
+            text("Volume"),
+            tooltip(
+                button("Volume Slider"),
+                availability,
+                tooltip::Position::Top
+            ),
+            row![
+                remote_button("Mute", RemoteAction::Mute, control_state),
+                remote_button("Volume Down", RemoteAction::VolumeDown, control_state),
+                remote_button("Volume Up", RemoteAction::VolumeUp, control_state)
             ]
             .spacing(8),
         ]
@@ -136,6 +151,36 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
     )
     .width(Length::Fill)
     .into()
+}
+
+fn remote_button(
+    label: &'static str,
+    action: RemoteAction,
+    control_state: &ControlState,
+) -> Element<'static, Message> {
+    let button = button(label);
+    if let Some(device) = control_state
+        .selected_device
+        .as_ref()
+        .filter(|_| control_state.remote_actions_enabled())
+    {
+        button
+            .on_press(Message::AttemptRemoteAction(SendRemoteAction::new(
+                device.id(),
+                control_state.selection_generation,
+                action,
+            )))
+            .into()
+    } else {
+        tooltip(
+            button,
+            control_state
+                .disabled_reason
+                .unwrap_or("Remote actions are unavailable."),
+            tooltip::Position::Top,
+        )
+        .into()
+    }
 }
 
 fn split_bar(height: u16) -> Element<'static, Message> {

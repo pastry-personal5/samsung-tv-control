@@ -7,8 +7,10 @@ It is intended to provide responsive, keyboard-friendly control of compatible Sa
 ## Status
 
 The repository has a native Iced GUI shell with Remote, Sources, Apps, Text
-Input, and Settings views. Device discovery, pairing, connection, and remote
-commands are not implemented yet.
+Input, and Settings views. It includes pure session selection, pairing and
+connection state projection, and remote-action admission policy. Device
+discovery, pairing, connection, and remote-command transport are not
+implemented yet.
 
 ## Technology and architecture
 

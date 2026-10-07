@@ -1,6 +1,6 @@
 # P1-M9: Remote Command Admission Policy
 
-Status: Draft
+Status: Complete
 
 ## Approach
 

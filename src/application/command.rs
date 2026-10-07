@@ -4,16 +4,26 @@ use crate::domain::{DeviceId, RemoteAction};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SendRemoteAction {
     target: DeviceId,
+    selection_generation: u64,
     action: RemoteAction,
 }
 
 impl SendRemoteAction {
-    pub const fn new(target: DeviceId, action: RemoteAction) -> Self {
-        Self { target, action }
+    pub const fn new(target: DeviceId, selection_generation: u64, action: RemoteAction) -> Self {
+        Self {
+            target,
+            selection_generation,
+            action,
+        }
     }
 
     pub const fn target(&self) -> DeviceId {
         self.target
+    }
+
+    /// Selection epoch observed when the user formed this request.
+    pub const fn selection_generation(&self) -> u64 {
+        self.selection_generation
     }
 
     pub const fn action(&self) -> RemoteAction {
@@ -25,7 +35,10 @@ impl SendRemoteAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteActionRejection {
     NoSelectedTv,
-    SelectedTvNotReady,
+    WrongTarget,
+    StaleSelectionGeneration,
+    PairingRequired,
+    NotConnected,
 }
 
 /// Result of evaluating a typed remote action against application state.
@@ -37,6 +50,8 @@ pub enum RemoteActionOutcome {
         request: SendRemoteAction,
         reason: RemoteActionRejection,
     },
+    /// All local policy preconditions passed. This is not a send result.
+    Eligible(SendRemoteAction),
 }
 
 #[cfg(test)]
@@ -47,15 +62,16 @@ mod tests {
     fn request_preserves_target_and_action() {
         let device_id = DeviceId::new(1);
         let action = RemoteAction::PowerToggle;
-        let request = SendRemoteAction::new(device_id, action);
+        let request = SendRemoteAction::new(device_id, 3, action);
 
         assert_eq!(request.target(), device_id);
+        assert_eq!(request.selection_generation(), 3);
         assert_eq!(request.action(), action);
     }
 
     #[test]
     fn rejected_outcome_preserves_request_and_reason() {
-        let request = SendRemoteAction::new(DeviceId::new(7), RemoteAction::Select);
+        let request = SendRemoteAction::new(DeviceId::new(7), 2, RemoteAction::Select);
         let outcome = RemoteActionOutcome::Rejected {
             request: request.clone(),
             reason: RemoteActionRejection::NoSelectedTv,

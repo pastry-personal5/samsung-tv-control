@@ -4,6 +4,12 @@ Status: Active
 
 ## Entries
 
+- 2026-10-08 — Completed P1-M9 and Phase 1. Remote requests now retain the
+  selection generation and are checked by a pure policy for selection, target,
+  generation, pairing, and connection readiness. The policy’s eligible result
+  is not a transport result; Iced enables controls only from the same policy
+  and publishes no sent/confirmed message. Cargo format, Clippy, and test
+  gates passed (40 tests), with no I/O added.
 - 2026-10-08 — Completed P1-M8. Added independent, generation-scoped pairing
   and connection lifecycle facts with explicit ignored results for stale or
   absent selections. Changing selections resets lifecycle data; Iced renders

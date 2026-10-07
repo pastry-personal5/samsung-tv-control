@@ -1,9 +1,10 @@
 use crate::application::command::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction};
-use crate::domain::{DeviceDisplay, DeviceId};
+use crate::domain::{DeviceDisplay, DeviceId, RemoteAction};
 
 /// Application-owned control availability for the current snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlStatus {
+    Available,
     Unavailable(RemoteActionRejection),
 }
 
@@ -42,8 +43,7 @@ enum Selection {
     Selected(DeviceDisplay),
 }
 
-/// The application's control state snapshot. Device selection is introduced
-/// by P1-M7; this milestone can represent only the initial, unselected state.
+/// The application's in-memory selected-device and lifecycle snapshot.
 #[derive(Debug, Clone, Default)]
 pub struct State {
     selection: Selection,
@@ -145,21 +145,48 @@ impl State {
         result
     }
 
-    pub const fn control_status(&self) -> ControlStatus {
-        match &self.selection {
-            Selection::None => ControlStatus::Unavailable(RemoteActionRejection::NoSelectedTv),
-            Selection::Selected(_) => {
-                ControlStatus::Unavailable(RemoteActionRejection::SelectedTvNotReady)
-            }
+    pub fn control_status(&self) -> ControlStatus {
+        let Some(target) = self.selected_device() else {
+            return ControlStatus::Unavailable(RemoteActionRejection::NoSelectedTv);
+        };
+
+        match self.evaluate_remote_action(SendRemoteAction::new(
+            target,
+            self.selection_generation,
+            RemoteAction::PowerToggle,
+        )) {
+            RemoteActionOutcome::Eligible(_) => ControlStatus::Available,
+            RemoteActionOutcome::Rejected { reason, .. } => ControlStatus::Unavailable(reason),
         }
     }
 
-    /// Attempts to send a remote action.
+    /// Applies the pure remote-command admission policy to one request.
     ///
-    /// Returns a rejection before any command can be admitted or sent.
-    pub fn attempt_remote_action(&self, request: SendRemoteAction) -> RemoteActionOutcome {
-        match self.control_status() {
-            ControlStatus::Unavailable(reason) => RemoteActionOutcome::Rejected { request, reason },
+    /// An eligible result says only that local policy passed. No request is
+    /// queued, sent, or otherwise dispatched by this method.
+    pub fn evaluate_remote_action(&self, request: SendRemoteAction) -> RemoteActionOutcome {
+        let Some(selected_device) = self.selected_device() else {
+            return RemoteActionOutcome::Rejected {
+                request,
+                reason: RemoteActionRejection::NoSelectedTv,
+            };
+        };
+
+        let reason = if request.target() != selected_device {
+            Some(RemoteActionRejection::WrongTarget)
+        } else if request.selection_generation() != self.selection_generation {
+            Some(RemoteActionRejection::StaleSelectionGeneration)
+        } else if self.pairing != PairingState::Ready {
+            Some(RemoteActionRejection::PairingRequired)
+        } else if self.connection != ConnectionState::Ready {
+            Some(RemoteActionRejection::NotConnected)
+        } else {
+            None
+        };
+
+        match reason {
+            Some(reason) => RemoteActionOutcome::Rejected { request, reason },
+            None => RemoteActionOutcome::Eligible(request),
         }
     }
 
@@ -196,10 +223,10 @@ mod tests {
     }
 
     #[test]
-    fn attempt_remote_action_rejects_and_preserves_the_requested_target() {
+    fn no_selection_rejection_preserves_the_requested_target() {
         let state = State::none();
-        let request = SendRemoteAction::new(DeviceId::new(1), RemoteAction::PowerToggle);
-        let outcome = state.attempt_remote_action(request.clone());
+        let request = SendRemoteAction::new(DeviceId::new(1), 0, RemoteAction::PowerToggle);
+        let outcome = state.evaluate_remote_action(request.clone());
         assert_eq!(
             outcome,
             RemoteActionOutcome::Rejected {
@@ -245,18 +272,60 @@ mod tests {
     }
 
     #[test]
-    fn selected_device_stays_disabled_until_lifecycle_state_exists() {
-        let mut state = State::none();
-        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
-        let request = SendRemoteAction::new(DeviceId::new(1), RemoteAction::PowerToggle);
-
+    fn remote_action_admission_checks_each_precondition() {
+        let no_selection = State::none();
+        let request = SendRemoteAction::new(DeviceId::new(1), 0, RemoteAction::PowerToggle);
         assert_eq!(
-            state.attempt_remote_action(request.clone()),
+            no_selection.evaluate_remote_action(request.clone()),
             RemoteActionOutcome::Rejected {
                 request,
-                reason: RemoteActionRejection::SelectedTvNotReady,
+                reason: RemoteActionRejection::NoSelectedTv,
             }
         );
+
+        let mut state = State::none();
+        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
+        let generation = state.selection_generation();
+        let cases = [
+            (
+                SendRemoteAction::new(DeviceId::new(2), generation, RemoteAction::PowerToggle),
+                RemoteActionRejection::WrongTarget,
+            ),
+            (
+                SendRemoteAction::new(DeviceId::new(1), generation - 1, RemoteAction::PowerToggle),
+                RemoteActionRejection::StaleSelectionGeneration,
+            ),
+            (
+                SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::PowerToggle),
+                RemoteActionRejection::PairingRequired,
+            ),
+        ];
+        for (request, reason) in cases {
+            assert_eq!(
+                state.evaluate_remote_action(request.clone()),
+                RemoteActionOutcome::Rejected { request, reason }
+            );
+        }
+
+        let _ = state.set_pairing_state(generation, PairingState::Ready);
+        let request =
+            SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::PowerToggle);
+        assert_eq!(
+            state.evaluate_remote_action(request.clone()),
+            RemoteActionOutcome::Rejected {
+                request,
+                reason: RemoteActionRejection::NotConnected,
+            }
+        );
+
+        let _ = state.set_connection_state(generation, ConnectionState::Ready);
+        let request =
+            SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::PowerToggle);
+        assert_eq!(
+            state.evaluate_remote_action(request.clone()),
+            RemoteActionOutcome::Eligible(request)
+        );
+        assert_eq!(state.control_status(), ControlStatus::Available);
     }
 
     #[test]
