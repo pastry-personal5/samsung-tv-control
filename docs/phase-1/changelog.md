@@ -4,6 +4,11 @@ Status: Active
 
 ## Entries
 
+- 2026-10-08 — Completed P1-M8. Added independent, generation-scoped pairing
+  and connection lifecycle facts with explicit ignored results for stale or
+  absent selections. Changing selections resets lifecycle data; Iced renders
+  separate safe labels and recovery guidance. Cargo format, Clippy, and test
+  gates passed (38 tests), without a network adapter or background work.
 - 2026-10-08 — Completed P1-M7. Application state now owns safe, in-memory
   selected-device display data and a monotonic selection generation. Pure
   select and clear transitions are idempotent for the current identity, and

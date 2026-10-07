@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::application::{ControlStatus, RemoteActionRejection};
+use crate::application::{ConnectionState, ControlStatus, PairingState, RemoteActionRejection};
 use crate::State;
 
 pub const DEFAULT_MESSAGE_PANE_HEIGHT: u16 = 176;
@@ -18,6 +18,54 @@ pub(super) const fn rejection_message(reason: RemoteActionRejection) -> &'static
         RemoteActionRejection::SelectedTvNotReady => {
             "TV selected. Pairing and connection are not available yet."
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LifecycleStatusText {
+    pub label: &'static str,
+    pub guidance: &'static str,
+}
+
+const fn pairing_status_text(state: PairingState) -> LifecycleStatusText {
+    match state {
+        PairingState::NotStarted => LifecycleStatusText {
+            label: "Not paired",
+            guidance: "Pair this TV before sending remote actions.",
+        },
+        PairingState::InProgress => LifecycleStatusText {
+            label: "Pairing in progress",
+            guidance: "Wait for pairing to finish before sending remote actions.",
+        },
+        PairingState::Ready => LifecycleStatusText {
+            label: "Paired",
+            guidance: "Pairing is ready for this TV.",
+        },
+        PairingState::Failed => LifecycleStatusText {
+            label: "Pairing needs attention",
+            guidance: "Try pairing this TV again.",
+        },
+    }
+}
+
+const fn connection_status_text(state: ConnectionState) -> LifecycleStatusText {
+    match state {
+        ConnectionState::NotConnected => LifecycleStatusText {
+            label: "Not connected",
+            guidance: "Connect to this TV before sending remote actions.",
+        },
+        ConnectionState::Connecting => LifecycleStatusText {
+            label: "Connecting",
+            guidance: "Wait for the connection to finish before sending remote actions.",
+        },
+        ConnectionState::Ready => LifecycleStatusText {
+            label: "Connected",
+            guidance: "Connection is ready for this TV.",
+        },
+        ConnectionState::Failed => LifecycleStatusText {
+            label: "Connection needs attention",
+            guidance: "Try connecting to this TV again.",
+        },
     }
 }
 
@@ -164,6 +212,10 @@ pub struct ControlState {
     pub selection_generation: u64,
     /// Human-readable explanation for why controls are unavailable.
     pub disabled_reason: &'static str,
+    /// Pairing lifecycle text derived from application state.
+    pub pairing: LifecycleStatusText,
+    /// Connection lifecycle text derived from application state.
+    pub connection: LifecycleStatusText,
 }
 
 impl ControlState {
@@ -174,6 +226,8 @@ impl ControlState {
                 selected_device: app_state.selected_device_display().cloned(),
                 selection_generation: app_state.selection_generation(),
                 disabled_reason: rejection_message(reason),
+                pairing: pairing_status_text(app_state.pairing_state()),
+                connection: connection_status_text(app_state.connection_state()),
             },
         }
     }
@@ -287,6 +341,28 @@ mod tests {
         assert_eq!(
             control_state.disabled_reason,
             rejection_message(RemoteActionRejection::SelectedTvNotReady)
+        );
+    }
+
+    #[test]
+    fn control_state_projects_distinct_lifecycle_labels_and_safe_guidance() {
+        let mut app_state = State::none();
+        let _ = app_state.select_device(crate::DeviceDisplay::new(
+            crate::DeviceId::new(9),
+            "Studio TV",
+        ));
+        let generation = app_state.selection_generation();
+        let _ = app_state.set_pairing_state(generation, PairingState::Failed);
+        let _ = app_state.set_connection_state(generation, ConnectionState::Connecting);
+
+        let control_state = ControlState::from_application_state(&app_state);
+
+        assert_eq!(control_state.pairing.label, "Pairing needs attention");
+        assert_eq!(control_state.pairing.guidance, "Try pairing this TV again.");
+        assert_eq!(control_state.connection.label, "Connecting");
+        assert_eq!(
+            control_state.connection.guidance,
+            "Wait for the connection to finish before sending remote actions."
         );
     }
 

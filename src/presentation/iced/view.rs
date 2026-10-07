@@ -113,6 +113,10 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
         column![
             text("Remote View").size(26),
             text(selected_device),
+            text(format!("Pairing: {}", control_state.pairing.label)),
+            text(control_state.pairing.guidance),
+            text(format!("Connection: {}", control_state.connection.label)),
+            text(control_state.connection.guidance),
             text(reason),
             Space::new().height(8),
             disabled("Power Toggle"),

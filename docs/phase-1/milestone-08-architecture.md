@@ -1,6 +1,6 @@
 # P1-M8: Connection State Projection
 
-Status: Draft
+Status: Complete
 
 ## Approach
 

@@ -87,11 +87,13 @@ projected into Iced; controls remain disabled until lifecycle facts exist.
 
 ### P1-M8: Connection State Projection
 
-Status: Planned
+Status: Done
 Goal: Represent pairing and connection readiness as distinct application
 states and project them into the presentation layer without claiming live I/O.
 Plan: [overview](milestone-08-overview.md),
 [architecture](milestone-08-architecture.md)
+Notes: Generation-scoped pure lifecycle updates now project independent pairing
+and connection statuses; selection changes reset both facts.
 
 ### P1-M9: Remote Command Admission Policy
 

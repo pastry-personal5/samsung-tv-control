@@ -1,6 +1,6 @@
 # P1-M8: Connection State Projection
 
-Status: Draft
+Status: Complete
 
 ## Goal
 
@@ -39,13 +39,22 @@ Out of scope:
 
 ## Completion checklist
 
-- [ ] Pairing and Connection have separate typed states and separate UI labels.
-- [ ] State updates tied to an outdated selection generation are ignored or
+- [x] Pairing and Connection have separate typed states and separate UI labels.
+- [x] State updates tied to an outdated selection generation are ignored or
   explicitly rejected.
-- [ ] Selection changes reset the prior device's transient lifecycle state.
-- [ ] Failure states map to safe, actionable text without leaking local device
+- [x] Selection changes reset the prior device's transient lifecycle state.
+- [x] Failure states map to safe, actionable text without leaking local device
   data.
-- [ ] Tests cover state transitions and projection without network or TV use.
-- [ ] Run the required Cargo format, Clippy, and test gates from the
+- [x] Tests cover state transitions and projection without network or TV use.
+- [x] Run the required Cargo format, Clippy, and test gates from the
   [contribution guide](../contribution-guide.md); record evidence and mark the
   milestone Done.
+
+## Acceptance evidence (2026-10-08)
+
+The application now owns independent `PairingState` and `ConnectionState`
+facts for the current selection generation. Updates for prior generations and
+updates with no current selection are explicitly ignored. Selecting another TV
+or clearing the selection resets both facts. The Iced projection provides
+separate labels and local recovery guidance, without any connection attempt,
+token, or device data. Cargo format, Clippy, and test gates passed (38 tests).

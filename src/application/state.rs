@@ -7,6 +7,34 @@ pub enum ControlStatus {
     Unavailable(RemoteActionRejection),
 }
 
+/// Pairing readiness for the current selection generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PairingState {
+    #[default]
+    NotStarted,
+    InProgress,
+    Ready,
+    Failed,
+}
+
+/// Connection readiness for the current selection generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ConnectionState {
+    #[default]
+    NotConnected,
+    Connecting,
+    Ready,
+    Failed,
+}
+
+/// The result of applying a generation-scoped lifecycle fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifecycleUpdateResult {
+    Applied,
+    IgnoredNoSelection,
+    IgnoredStaleGeneration,
+}
+
 #[derive(Debug, Clone, Default)]
 enum Selection {
     #[default]
@@ -20,6 +48,8 @@ enum Selection {
 pub struct State {
     selection: Selection,
     selection_generation: u64,
+    pairing: PairingState,
+    connection: ConnectionState,
 }
 
 impl State {
@@ -28,6 +58,8 @@ impl State {
         Self {
             selection: Selection::None,
             selection_generation: 0,
+            pairing: PairingState::NotStarted,
+            connection: ConnectionState::NotConnected,
         }
     }
 
@@ -52,6 +84,14 @@ impl State {
         self.selection_generation
     }
 
+    pub const fn pairing_state(&self) -> PairingState {
+        self.pairing
+    }
+
+    pub const fn connection_state(&self) -> ConnectionState {
+        self.connection
+    }
+
     /// Selects a caller-supplied known device for this session.
     ///
     /// Re-selecting the current identity is an idempotent no-op, including its
@@ -63,6 +103,7 @@ impl State {
 
         self.selection = Selection::Selected(device);
         self.selection_generation = self.selection_generation.saturating_add(1);
+        self.reset_lifecycle();
         true
     }
 
@@ -74,7 +115,34 @@ impl State {
 
         self.selection = Selection::None;
         self.selection_generation = self.selection_generation.saturating_add(1);
+        self.reset_lifecycle();
         true
+    }
+
+    /// Records a pairing lifecycle fact for the current selection generation.
+    pub fn set_pairing_state(
+        &mut self,
+        generation: u64,
+        pairing: PairingState,
+    ) -> LifecycleUpdateResult {
+        let result = self.validate_lifecycle_generation(generation);
+        if result == LifecycleUpdateResult::Applied {
+            self.pairing = pairing;
+        }
+        result
+    }
+
+    /// Records a connection lifecycle fact for the current selection generation.
+    pub fn set_connection_state(
+        &mut self,
+        generation: u64,
+        connection: ConnectionState,
+    ) -> LifecycleUpdateResult {
+        let result = self.validate_lifecycle_generation(generation);
+        if result == LifecycleUpdateResult::Applied {
+            self.connection = connection;
+        }
+        result
     }
 
     pub const fn control_status(&self) -> ControlStatus {
@@ -92,6 +160,21 @@ impl State {
     pub fn attempt_remote_action(&self, request: SendRemoteAction) -> RemoteActionOutcome {
         match self.control_status() {
             ControlStatus::Unavailable(reason) => RemoteActionOutcome::Rejected { request, reason },
+        }
+    }
+
+    fn reset_lifecycle(&mut self) {
+        self.pairing = PairingState::NotStarted;
+        self.connection = ConnectionState::NotConnected;
+    }
+
+    fn validate_lifecycle_generation(&self, generation: u64) -> LifecycleUpdateResult {
+        if self.selected_device().is_none() {
+            LifecycleUpdateResult::IgnoredNoSelection
+        } else if generation != self.selection_generation {
+            LifecycleUpdateResult::IgnoredStaleGeneration
+        } else {
+            LifecycleUpdateResult::Applied
         }
     }
 }
@@ -173,6 +256,54 @@ mod tests {
                 request,
                 reason: RemoteActionRejection::SelectedTvNotReady,
             }
+        );
+    }
+
+    #[test]
+    fn lifecycle_updates_are_generation_scoped_and_selection_resets_them() {
+        let mut state = State::none();
+        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
+        let generation = state.selection_generation();
+
+        assert_eq!(
+            state.set_pairing_state(generation, PairingState::InProgress),
+            LifecycleUpdateResult::Applied
+        );
+        assert_eq!(
+            state.set_pairing_state(generation, PairingState::Ready),
+            LifecycleUpdateResult::Applied
+        );
+        assert_eq!(
+            state.set_connection_state(generation, ConnectionState::Connecting),
+            LifecycleUpdateResult::Applied
+        );
+        assert_eq!(
+            state.set_connection_state(generation, ConnectionState::Ready),
+            LifecycleUpdateResult::Applied
+        );
+        assert_eq!(state.pairing_state(), PairingState::Ready);
+        assert_eq!(state.connection_state(), ConnectionState::Ready);
+
+        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(2), "Bedroom"));
+        assert_eq!(state.pairing_state(), PairingState::NotStarted);
+        assert_eq!(state.connection_state(), ConnectionState::NotConnected);
+        assert_eq!(
+            state.set_connection_state(generation, ConnectionState::Failed),
+            LifecycleUpdateResult::IgnoredStaleGeneration
+        );
+        assert_eq!(state.connection_state(), ConnectionState::NotConnected);
+
+        let current_generation = state.selection_generation();
+        assert_eq!(
+            state.set_pairing_state(current_generation, PairingState::Failed),
+            LifecycleUpdateResult::Applied
+        );
+        assert_eq!(state.pairing_state(), PairingState::Failed);
+
+        let _ = state.clear_selection();
+        assert_eq!(
+            state.set_connection_state(state.selection_generation(), ConnectionState::Ready),
+            LifecycleUpdateResult::IgnoredNoSelection
         );
     }
 }
