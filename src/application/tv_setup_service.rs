@@ -1,9 +1,9 @@
 use crate::domain::{DeviceId, RemoteAction};
 
-use super::device::{DeviceRepository, RepositoryError, SavedDevice};
-use super::secret::{PairingToken, SecretError, SecretStore};
-use super::target::TvHost;
-use super::trust::{CertificatePin, TrustError, TrustRecord, TrustStore};
+use super::certificate_trust::{CertificatePin, CertificateTrustStore, TrustError, TrustRecord};
+use super::credential_store::{CredentialStore, PairingToken, SecretError};
+use super::device_repository::{DeviceRepository, RepositoryError, SavedDevice};
+use super::tv_address::TvHost;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetupError {
@@ -46,13 +46,104 @@ pub struct ReconnectMaterial {
 
 /// Handles durable setup and recovery. The transport must have verified the
 /// same pin and obtained a consent token before `commit_pairing` is called.
-pub struct DeviceService<R, S, T> {
+pub struct TvSetupService<R, S, T> {
     devices: R,
     secrets: S,
     trust: T,
 }
 
-impl<R: DeviceRepository, S: SecretStore, T: TrustStore> DeviceService<R, S, T> {
+pub trait TvSetupPort: Send + Sync {
+    fn saved_devices(&self) -> Result<Vec<SavedDevice>, RepositoryError>;
+    fn selected_device(&self) -> Result<Option<SavedDevice>, RepositoryError>;
+    fn select_saved(&self, id: DeviceId) -> Result<SavedDevice, RepositoryError>;
+    fn commit_pairing(
+        &self,
+        label: &str,
+        host: TvHost,
+        pin: CertificatePin,
+        token: PairingToken,
+    ) -> Result<SavedDevice, SetupError>;
+    fn repair(
+        &self,
+        id: DeviceId,
+        label: &str,
+        host: TvHost,
+        pin: CertificatePin,
+        token: PairingToken,
+    ) -> Result<SavedDevice, SetupError>;
+    fn reconnect_material(&self, id: DeviceId) -> Result<ReconnectMaterial, ReconnectError>;
+    fn save_rotated_token(&self, id: DeviceId, token: &PairingToken) -> Result<(), SecretError>;
+    fn set_action_verified(
+        &self,
+        id: DeviceId,
+        action: RemoteAction,
+        verified: bool,
+    ) -> Result<Vec<RemoteAction>, RepositoryError>;
+    fn forget(&self, id: DeviceId) -> ForgetResult;
+}
+
+impl<R, S, T> TvSetupPort for TvSetupService<R, S, T>
+where
+    R: DeviceRepository + Send + Sync,
+    S: CredentialStore + Send + Sync,
+    T: CertificateTrustStore + Send + Sync,
+{
+    fn saved_devices(&self) -> Result<Vec<SavedDevice>, RepositoryError> {
+        Self::saved_devices(self)
+    }
+
+    fn selected_device(&self) -> Result<Option<SavedDevice>, RepositoryError> {
+        Self::selected_device(self)
+    }
+
+    fn select_saved(&self, id: DeviceId) -> Result<SavedDevice, RepositoryError> {
+        Self::select_saved(self, id)
+    }
+
+    fn commit_pairing(
+        &self,
+        label: &str,
+        host: TvHost,
+        pin: CertificatePin,
+        token: PairingToken,
+    ) -> Result<SavedDevice, SetupError> {
+        Self::commit_pairing(self, label, host, pin, token)
+    }
+
+    fn repair(
+        &self,
+        id: DeviceId,
+        label: &str,
+        host: TvHost,
+        pin: CertificatePin,
+        token: PairingToken,
+    ) -> Result<SavedDevice, SetupError> {
+        Self::repair(self, id, label, host, pin, token)
+    }
+
+    fn reconnect_material(&self, id: DeviceId) -> Result<ReconnectMaterial, ReconnectError> {
+        Self::reconnect_material(self, id)
+    }
+
+    fn save_rotated_token(&self, id: DeviceId, token: &PairingToken) -> Result<(), SecretError> {
+        Self::save_rotated_token(self, id, token)
+    }
+
+    fn set_action_verified(
+        &self,
+        id: DeviceId,
+        action: RemoteAction,
+        verified: bool,
+    ) -> Result<Vec<RemoteAction>, RepositoryError> {
+        Self::set_action_verified(self, id, action, verified)
+    }
+
+    fn forget(&self, id: DeviceId) -> ForgetResult {
+        Self::forget(self, id)
+    }
+}
+
+impl<R: DeviceRepository, S: CredentialStore, T: CertificateTrustStore> TvSetupService<R, S, T> {
     pub fn new(devices: R, secrets: S, trust: T) -> Self {
         Self {
             devices,
@@ -348,7 +439,7 @@ mod tests {
         }
     }
 
-    impl SecretStore for Fake {
+    impl CredentialStore for Fake {
         fn load(&self, device: DeviceId) -> Result<Option<PairingToken>, SecretError> {
             let mut memory = self.0.borrow_mut();
             memory.secret_loads += 1;
@@ -375,7 +466,7 @@ mod tests {
         }
     }
 
-    impl TrustStore for Fake {
+    impl CertificateTrustStore for Fake {
         fn load(&self, device: DeviceId) -> Result<Option<TrustRecord>, TrustError> {
             Ok(self.0.borrow().trust.get(&device).cloned())
         }
@@ -393,11 +484,11 @@ mod tests {
         }
     }
 
-    fn service(fake: &Fake) -> DeviceService<Fake, Fake, Fake> {
-        DeviceService::new(fake.clone(), fake.clone(), fake.clone())
+    fn service(fake: &Fake) -> TvSetupService<Fake, Fake, Fake> {
+        TvSetupService::new(fake.clone(), fake.clone(), fake.clone())
     }
 
-    fn commit(service: &DeviceService<Fake, Fake, Fake>) -> Result<SavedDevice, SetupError> {
+    fn commit(service: &TvSetupService<Fake, Fake, Fake>) -> Result<SavedDevice, SetupError> {
         service.commit_pairing(
             "TV",
             TvHost::parse("tv.local").unwrap(),

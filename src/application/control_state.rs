@@ -1,4 +1,6 @@
-use crate::application::command::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction};
+use crate::application::remote_request::{
+    RemoteActionOutcome, RemoteActionRejection, SendRemoteAction,
+};
 use crate::domain::{DeviceDisplay, DeviceId, RemoteAction};
 
 /// Application-owned control availability for the current snapshot.
@@ -45,7 +47,7 @@ enum Selection {
 
 /// The application's in-memory selected-device and lifecycle snapshot.
 #[derive(Debug, Clone, Default)]
-pub struct State {
+pub struct ControlState {
     selection: Selection,
     selection_generation: u64,
     pairing: PairingState,
@@ -53,7 +55,7 @@ pub struct State {
     verified_actions: Vec<RemoteAction>,
 }
 
-impl State {
+impl ControlState {
     /// Creates a new state with no selected TV.
     pub const fn none() -> Self {
         Self {
@@ -249,9 +251,9 @@ mod tests {
 
     #[test]
     fn new_state_has_no_selected_tv() {
-        let state = State::none();
+        let state = ControlState::none();
         assert_eq!(state.selected_device(), None);
-        assert_eq!(State::default().selected_device(), None);
+        assert_eq!(ControlState::default().selected_device(), None);
         assert_eq!(
             state.control_status(RemoteAction::Up),
             ControlStatus::Unavailable(RemoteActionRejection::NoSelectedTv)
@@ -260,7 +262,7 @@ mod tests {
 
     #[test]
     fn no_selection_rejection_preserves_the_requested_target() {
-        let state = State::none();
+        let state = ControlState::none();
         let request = SendRemoteAction::new(DeviceId::new(1), 0, RemoteAction::PowerToggle);
         let outcome = state.evaluate_remote_action(request.clone());
         assert_eq!(
@@ -274,7 +276,7 @@ mod tests {
 
     #[test]
     fn selection_and_clear_advance_the_generation_only_when_identity_changes() {
-        let mut state = State::none();
+        let mut state = ControlState::none();
         let living_room = DeviceDisplay::new(DeviceId::new(1), "Living Room");
         let renamed_living_room = DeviceDisplay::new(DeviceId::new(1), "TV");
         let bedroom = DeviceDisplay::new(DeviceId::new(2), "Bedroom");
@@ -309,7 +311,7 @@ mod tests {
 
     #[test]
     fn remote_action_admission_checks_each_precondition() {
-        let no_selection = State::none();
+        let no_selection = ControlState::none();
         let request = SendRemoteAction::new(DeviceId::new(1), 0, RemoteAction::PowerToggle);
         assert_eq!(
             no_selection.evaluate_remote_action(request.clone()),
@@ -319,7 +321,7 @@ mod tests {
             }
         );
 
-        let mut state = State::none();
+        let mut state = ControlState::none();
         let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
         let generation = state.selection_generation();
         let cases = [
@@ -376,7 +378,7 @@ mod tests {
 
     #[test]
     fn lifecycle_updates_are_generation_scoped_and_selection_resets_them() {
-        let mut state = State::none();
+        let mut state = ControlState::none();
         let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
         let generation = state.selection_generation();
 

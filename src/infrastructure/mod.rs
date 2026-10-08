@@ -1,5 +1,5 @@
 #[cfg(target_os = "macos")]
-pub mod keychain;
+pub mod macos;
+pub mod preferences;
 pub mod samsung;
-pub mod ssdp;
-pub mod storage;
+pub mod ssdp_discovery;

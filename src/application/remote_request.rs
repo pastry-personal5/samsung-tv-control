@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn rejected_outcome_preserves_request_and_reason() {
-        let request = SendRemoteAction::new(DeviceId::new(7), 2, RemoteAction::Select);
+        let request = SendRemoteAction::new(DeviceId::new(7), 2, RemoteAction::Enter);
         let outcome = RemoteActionOutcome::Rejected {
             request: request.clone(),
             reason: RemoteActionRejection::NoSelectedTv,

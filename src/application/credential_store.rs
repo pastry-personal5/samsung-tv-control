@@ -32,7 +32,7 @@ pub enum SecretError {
     InvalidToken,
 }
 
-pub trait SecretStore {
+pub trait CredentialStore {
     fn load(&self, device: crate::domain::DeviceId) -> Result<Option<PairingToken>, SecretError>;
     fn save(
         &self,

@@ -14,7 +14,8 @@ cargo run
 ```
 
 The current package launches the Iced GUI. Settings can probe and pair a TV
-over secure port 8002; the hardware acceptance run for P1-M10 is in progress.
+over secure port 8002; P1-M10 is Done with some hardware verification deferred
+by the owner. See the milestone overview for the exact evidence and limits.
 For local-network permission testing, build the signed app bundle with
 `make bundle`. It uses `SAMSUNG_TV_CODESIGN_IDENTITY` if set, or the identity
 saved in `target/local-signing-identity.txt` by

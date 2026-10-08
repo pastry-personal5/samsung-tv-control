@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
-use super::command::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction};
-use super::State;
+use super::remote_request::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction};
+use super::ControlState;
 
 /// A dispatcher owns one waiting FIFO and at most one transport write.
 /// Terminal results stay in its journal until an observer acknowledges them.
 #[derive(Debug)]
-pub struct Dispatcher {
+pub struct RemoteDispatcher {
     waiting: VecDeque<QueuedRequest>,
     in_flight: Option<QueuedRequest>,
     terminal: VecDeque<TerminalResult>,
@@ -69,7 +69,7 @@ pub struct TerminalResult {
     pub outcome: TerminalOutcome,
 }
 
-impl Dispatcher {
+impl RemoteDispatcher {
     pub fn new(queue_capacity: usize, journal_capacity: usize) -> Self {
         Self {
             waiting: VecDeque::new(),
@@ -97,7 +97,7 @@ impl Dispatcher {
             .map(|item| item.id)
     }
 
-    pub fn admit(&mut self, state: &State, request: SendRemoteAction) -> Admission {
+    pub fn admit(&mut self, state: &ControlState, request: SendRemoteAction) -> Admission {
         if let RemoteActionOutcome::Rejected { reason, .. } =
             state.evaluate_remote_action(request.clone())
         {
@@ -119,7 +119,7 @@ impl Dispatcher {
 
     /// Returns the next request that may start a write. Rechecks every queued
     /// request against current state and records a terminal result for stale work.
-    pub fn start_next(&mut self, state: &State) -> Option<QueuedRequest> {
+    pub fn start_next(&mut self, state: &ControlState) -> Option<QueuedRequest> {
         if self.in_flight.is_some() {
             return None;
         }
@@ -209,8 +209,8 @@ mod tests {
     use crate::application::{ConnectionState, PairingState};
     use crate::domain::{DeviceDisplay, DeviceId, RemoteAction};
 
-    fn connected_state() -> State {
-        let mut state = State::none();
+    fn connected_state() -> ControlState {
+        let mut state = ControlState::none();
         state.select_device(DeviceDisplay::new(DeviceId::new(1), "TV"));
         let generation = state.selection_generation();
         state.set_pairing_state(generation, PairingState::Ready);
@@ -219,14 +219,14 @@ mod tests {
         state
     }
 
-    fn request(state: &State, action: RemoteAction) -> SendRemoteAction {
+    fn request(state: &ControlState, action: RemoteAction) -> SendRemoteAction {
         SendRemoteAction::new(DeviceId::new(1), state.selection_generation(), action)
     }
 
     #[test]
     fn orders_writes_and_rejects_queue_or_journal_overflow() {
         let state = connected_state();
-        let mut dispatcher = Dispatcher::new(2, 2);
+        let mut dispatcher = RemoteDispatcher::new(2, 2);
         let first = dispatcher.admit(&state, request(&state, RemoteAction::Up));
         let second = dispatcher.admit(&state, request(&state, RemoteAction::Down));
         assert!(matches!(first, Admission::Queued(_)));
@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn stale_selection_is_terminal_without_a_write() {
         let mut state = connected_state();
-        let mut dispatcher = Dispatcher::new(2, 2);
+        let mut dispatcher = RemoteDispatcher::new(2, 2);
         let admission = dispatcher.admit(&state, request(&state, RemoteAction::Up));
         state.select_device(DeviceDisplay::new(DeviceId::new(2), "Other"));
         assert!(dispatcher.start_next(&state).is_none());
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn cancellation_and_observer_reattachment_preserve_terminal_results() {
         let state = connected_state();
-        let mut dispatcher = Dispatcher::new(2, 2);
+        let mut dispatcher = RemoteDispatcher::new(2, 2);
         let Admission::Queued(first) = dispatcher.admit(&state, request(&state, RemoteAction::Up))
         else {
             panic!("not queued")
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn power_is_rejected_before_queue_admission() {
         let state = connected_state();
-        let mut dispatcher = Dispatcher::new(1, 1);
+        let mut dispatcher = RemoteDispatcher::new(1, 1);
         assert_eq!(
             dispatcher.admit(&state, request(&state, RemoteAction::PowerToggle)),
             Admission::Rejected(DispatchRejection::Policy(
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn aborted_write_is_uncertain_and_queued_followup_is_cancelled() {
         let state = connected_state();
-        let mut dispatcher = Dispatcher::new(2, 2);
+        let mut dispatcher = RemoteDispatcher::new(2, 2);
         let Admission::Queued(first) = dispatcher.admit(&state, request(&state, RemoteAction::Up))
         else {
             panic!("not queued")

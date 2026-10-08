@@ -1,6 +1,9 @@
-# Planned repository architecture
+# Repository architecture
 
-This is the proposed layout for the Rust macOS application. It maps the [software architecture](architecture.md) to directories and files. These paths describe ownership; most do not exist yet. Start with one Cargo package and add files as their behavior is implemented.
+This is the implemented P1-M11 layout for the Rust macOS application. It maps
+the [software architecture](architecture.md) to current directories and files.
+Later source, app, text, wake, and exact-volume features will add modules when
+their behavior is implemented.
 
 ```text
 .
@@ -12,52 +15,43 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 │   ├── lib.rs                    # module exports used by integration tests
 │   ├── domain/
 │   │   ├── mod.rs
-│   │   ├── device.rs             # stable local identity and device record types
-│   │   ├── capability.rs         # known, unknown and unsupported capabilities
-│   │   ├── remote_action.rs      # finite semantic action set
-│   │   └── target.rs             # typed sources and installed TV app references
+│   │   ├── device.rs             # stable local identity and display value
+│   │   └── remote_action.rs      # finite semantic action set
 │   ├── application/
 │   │   ├── mod.rs
-│   │   ├── command.rs            # typed requests from all input surfaces
-│   │   ├── event.rs              # typed outcomes and sequenced control events
-│   │   ├── state.rs              # pairing, connection and text-session states
-│   │   ├── monitoring.rs         # snapshots, results and activity
-│   │   ├── ports.rs              # transport, discovery, wake and storage traits
-│   │   ├── dispatcher.rs         # sole bounded control queue and admission
-│   │   ├── device_service.rs     # discovery, pairing, connect and forget
-│   │   └── control_service.rs    # buttons, wake, sources, apps and text
+│   │   ├── remote_request.rs     # typed remote requests and admission policy
+│   │   ├── control_state.rs      # selection, Pairing, Connection, availability
+│   │   ├── remote_dispatcher.rs  # bounded FIFO and terminal-result journal
+│   │   ├── tv_control_coordinator.rs # live use-case workflow and session policy
+│   │   ├── tv_session.rs         # transport port and typed facts/events
+│   │   ├── tv_discovery.rs       # candidate-discovery port
+│   │   ├── tv_address.rs         # local host validation
+│   │   ├── tv_setup_service.rs   # trusted setup, reconnect and forget
+│   │   ├── device_repository.rs  # saved-record port and type
+│   │   ├── credential_store.rs   # pairing credential port
+│   │   └── certificate_trust.rs  # device-scoped trust port
 │   ├── presentation/
 │   │   ├── mod.rs
 │   │   └── iced/
 │   │       ├── mod.rs
-│   │       ├── app.rs            # Iced application and main/settings window wiring
-│   │       ├── message.rs        # UI and effect-result messages
-│   │       ├── view_model.rs     # Remote and settings UI state projection
-│   │       ├── messages.rs       # shared session-only Global Messages feed
-│   │       ├── input.rs          # keyboard/pointer to command mapping
+│   │       ├── app.rs            # windows, input mapping, task scheduling
+│   │       ├── ui_message.rs     # UI intentions and typed effect results
+│   │       ├── view_model.rs     # control and message-feed projections
 │   │       └── view.rs           # controls, Activity View and both windows
 │   └── infrastructure/
 │       ├── mod.rs
 │       ├── samsung/
 │       │   ├── mod.rs
 │       │   ├── codec.rs          # bounded wire parsing and frame encoding
-│       │   ├── session.rs        # one socket owner, serial writes and TV events
-│       │   ├── keys.rs           # model-aware action to remote-key mapping
-│       │   ├── apps.rs           # installed-app events and launch frames
-│       │   └── text.rs           # IME events and text-entry frames
-│       ├── probe.rs              # manual-host validation and endpoint probing
-│       ├── discovery.rs          # bounded local-network candidate discovery
-│       ├── wake.rs               # Wake-on-LAN packet and readiness adapter
-│       ├── preferences.rs        # non-secret local device records
+│       │   └── session.rs        # one socket owner, serial writes and TV events
+│       ├── ssdp_discovery.rs     # bounded local-network candidate discovery
+│       ├── preferences.rs       # non-secret saved-device and trust records
 │       └── macos/
 │           ├── mod.rs
-│           ├── keychain.rs       # device-scoped pairing-token store
-│           ├── trust.rs          # device-scoped certificate trust records
-│           └── local_network.rs  # platform access-error interpretation
+│           └── keychain.rs       # device-scoped pairing-token store
 ├── tests/
-│   ├── application/              # fake-port command and state scenarios
-│   ├── infrastructure/           # synthetic Samsung protocol fixtures
-│   └── presentation/             # input mapping and ViewModel behavior
+│   ├── integration.rs
+│   └── integration/             # public-boundary request and domain tests
 ├── assets/                       # bundled images, icons and macOS resources
 └── docs/
     ├── architecture.md           # layer and runtime design
@@ -68,24 +62,43 @@ This is the proposed layout for the Rust macOS application. It maps the [softwar
 
 ## Module contracts
 
-| Owner | Public surface | Dependency direction |
+| Owner | Current responsibility | Dependencies |
 | --- | --- | --- |
-| `domain` | `DeviceId`, `Device`, `RemoteAction`, typed source/app references and capability values | Standard library and small value-type dependencies only |
-| `application` | `Command`, `ControlSnapshot`, `ControlEvent`, typed request results, connection/pairing/text states, use-case services, narrow ports such as `TvTransport`, `DeviceDiscovery`, `WakeSender`, `DeviceRepository`, `SecretStore`, and `TrustStore` | `domain` |
-| `presentation::iced` | Iced `Message`, `ViewModel`, `view`, input mapper | `application`, `domain`, Iced |
-| `infrastructure::samsung` | `TvTransport` implementation, codec and key map | `application` ports, `domain`, transport dependencies |
-| Other `infrastructure` modules | Discovery, wake, persistence, Keychain and macOS network-access adapters | `application` ports, `domain`, platform dependencies |
-| `main.rs` | Construction and lifecycle wiring | All outer modules |
+| `domain` | `DeviceId`, `DeviceDisplay`, and finite `RemoteAction` | Standard value types and Serde |
+| `application` | `ControlState`, `SendRemoteAction`, `RemoteDispatcher`, `TvControlCoordinator`, and setup/discovery/session/storage ports | Domain and async runtime; no Iced, Samsung wire, or macOS APIs |
+| `presentation::iced` | Window lifecycle, keyboard/focus mapping, Iced tasks, `RemoteControlViewState`, message feed, Activity projection | Application, domain, Iced |
+| `infrastructure::samsung` | `SamsungGateway`, pinned TLS/WebSocket session, codec and `KEY_*` map | Application ports, domain, transport libraries |
+| Other infrastructure | SSDP discovery, non-secret preferences/trust records, macOS Keychain | Application ports and platform libraries |
+| `main.rs` | Construct concrete adapters and pass `AppServices` to Iced | Outer modules |
 
-Keep port traits near the use cases that need them. Define a small method set and typed errors for each port. A secret lookup should return only the credential needed for the selected device; ordinary device records must not serialize pairing tokens or certificate pins. The composition root injects concrete adapters into one application coordinator, then passes a command handle and read-only observation handle to the Iced adapter. `TvTransport` opens and closes a session, serially writes one typed operation handed to it, and reports transport results and TV observations. It has no command admission queue or product retry policy. The ViewModel updates presentation state and emits commands; `app.rs` submits fast controls to the ordered dispatcher and uses Iced tasks for longer operations. Admission returns a typed accepted or rejected result; each accepted request later has one terminal result. `monitoring.rs` retains unacknowledged terminal results in memory and supplies atomic snapshots, sequenced events, and a bounded Activity View projection to observers. `presentation::iced::messages` owns one app-wide, session-only feed of user-relevant messages from both windows, derived from typed outcomes and presentation events. Avoid importing Iced in `domain`, `application`, or `infrastructure`.
+`TvControlCoordinator` owns restoration, discovery/probe attempts, Pairing and
+reconnect flows, selection generations, session identity, cancellation, and
+the sole bounded remote request FIFO. It exposes typed application results.
+The Samsung adapter owns socket channels and frames. Iced schedules effects
+and turns application outcomes into text; it does not import infrastructure.
+The result journal retains each terminal outcome until Iced projects and
+acknowledges it.
 
-The command boundary is semantic. For example, the ViewModel emits `Command::Send { device, action: RemoteAction::Select }`; the Samsung key map chooses `KEY_ENTER`, and the codec creates the `ms.remote.control` frame. Exact volume setting, source selection, TV app launch, and text entry use separate command variants. App IDs must come from the selected TV's bounded catalog, with device membership checked again at dispatch. The session parses IME start/end events into typed observations; the application owns text state, and `text.rs` owns UTF-8 encoding into the wire format. UI events, application commands, Samsung frames, and Iced `Task` values are separate types with separate jobs. See [Iced application and subscription documentation](https://docs.rs/iced/0.14.0/iced/), [protocol research](research/samsung-tv-remote-protocol.md), [source and app research](research/source-changes-and-app-launches.md), and [text-input research](research/samsung-tv-text-input.md).
+The request boundary is semantic: Iced submits `SendRemoteAction` with a
+`RemoteAction::Enter` value, while the Samsung codec maps that action to
+`KEY_ENTER`. A local socket write is a transport outcome, not observed TV
+state. Sources, TV apps, text entry, wake, and exact volume remain future
+features; their ports and modules should be added when behavior is ready.
 
 ## Runtime ownership
 
-`main.rs` builds the adapters and application services and starts the main Iced window in the Remote View. The application startup use case restores the most recently selected saved TV when one exists and initiates its Connection. Do not auto-open Settings or show onboarding on first launch. With no Selected TV, preserve the Remote View layout, disable controls, and show a short status line pointing to Settings. The Main Toolbar opens a separate Settings Window. Its TV settings page lists saved and discovered TVs in a radio-button TV Selection Table above Discover TVs, hiding the table when it has no rows. A single row is preselected; multiple rows require a choice when none is active. Selecting a discovered candidate requires TV Identity Confirmation and pairing before saving it as the active TV. The Iced adapter dispatches ViewModel commands in message order. The application coordinator owns the sole bounded command queue, connection policy, and sanitized monitoring state. One infrastructure session for the active TV owns the WebSocket and serializes writes handed to it. Fast controls enter the application queue synchronously without blocking the UI; Iced tasks await longer operations and map their results to presentation messages. Dropping or recreating the UI subscription must not duplicate the network connection. A newly attached observer receives a consistent state snapshot and subsequent sequenced events; a missed event triggers resynchronization. A terminal result is retained until acknowledged, or admission returns busy when its bounded journal is full.
+The app starts in Remote View and restores the selected saved TV if one is
+readable. Settings handles discovery, manual address entry, identity/trust
+confirmation, Pairing, re-pair, and forget. The coordinator validates
+selection and attempt IDs before accepting asynchronous results. The Samsung
+session serializes writes over secure port 8002. Iced owns the session-only
+Global Messages Pane and Activity View projections. A written result reports
+only that the frame reached the connection; no current TV-state readback is
+claimed.
 
-Device discovery, wake retries, and connection attempts have explicit cancellation and time limits. The application layer decides when they stop; adapters implement the I/O. Request IDs and selection generations prevent results from a previous selection or connection from changing the current ViewModel. The UI renders states such as pairing pending, connected, reconnecting, re-pair required, text input available, and wake timeout without inferring success from a socket write alone. Only observed TV state with a known source and freshness can populate current power, source, mute, or numeric volume readings.
+P1-M11 renamed the serialized action from `Select` to `Enter` without a legacy
+reader. A pre-M11 `devices.json` containing `Select` is reported as corrupt
+and left untouched. See the [manual recovery steps](phase-1/milestone-11-architecture.md#breaking-saved-action-spelling).
 
 ## Repository rules
 
@@ -97,4 +110,6 @@ Device discovery, wake retries, and connection attempts have explicit cancellati
 - Mirror important source boundaries under `tests/`. Use fake ports and synthetic frames; no automated test should require a TV or local network.
 - Do not commit pairing tokens, real device identifiers, IP or MAC addresses, or local-network logs. Store secrets in Keychain and keep preferences separate.
 
-The current crate has an Iced shell and pure selection, lifecycle, and command policy; it has no live adapters. Dependencies and bundle configuration should be selected when their implementation is ready to be validated. The Settings Window's TV page is the entry point for network discovery and manual host entry. Discovery presents candidates for user selection and saves a TV only after TV Identity Confirmation and required pairing. At launch, restore the most recently selected saved TV and attempt its Connection using the normal reconnect policy; manual host entry remains available if discovery is unavailable or finds nothing. Select the discovery mechanism after testing the TV's advertisements. KU75UA8090FXKR is the initial hardware target, not yet a verified support claim. P1-M10 uses only secure port 8002; the owner ruled out port-8001 compatibility for this milestone. Use the commands in the [contribution guide](contribution-guide.md) for the repository's validation workflow.
+The P1-M10 [sanitized hardware matrix](phase-1/milestone-10-hardware-matrix.md)
+records tested support and deferred checks for KU75UA8090FXKR. Use the
+[contribution guide](contribution-guide.md) for the validation workflow.

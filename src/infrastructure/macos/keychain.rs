@@ -2,16 +2,16 @@ use security_framework::passwords::{
     delete_generic_password, get_generic_password, set_generic_password,
 };
 
-use crate::application::secret::{PairingToken, SecretError, SecretStore};
+use crate::application::credential_store::{CredentialStore, PairingToken, SecretError};
 use crate::domain::DeviceId;
 
 const SERVICE: &str = "dev.samsungtvremote.local.pairing";
 const ITEM_NOT_FOUND: i32 = -25300;
 
 #[derive(Debug, Default)]
-pub struct KeychainSecretStore;
+pub struct KeychainCredentialStore;
 
-impl SecretStore for KeychainSecretStore {
+impl CredentialStore for KeychainCredentialStore {
     fn load(&self, device: DeviceId) -> Result<Option<PairingToken>, SecretError> {
         match get_generic_password(SERVICE, &device.to_string()) {
             Ok(bytes) => {

@@ -1,6 +1,6 @@
 # P1-M10: First Live TV Connection and Control
 
-Status: In Progress
+Status: Done
 
 ## Goal
 
@@ -16,8 +16,8 @@ Terminal diagnostic confirmed the secure endpoint and consent flow. The owner
 reports successful empty-install setup, Pairing, all ten required keys, and
 successful discovery from the signed bundle. The owner also reports
 saved-token reconnect and Retry Connection working. Native bundle permission
-recovery and failure/switching paths have deferred human verification and
-remain open acceptance items.
+recovery and failure/switching paths have deferred human verification. The
+owner closed this milestone with those checks still unverified.
 The owner tested on-screen controls and keyboard shortcuts, including Enter,
 Escape, and Shift+= for Volume Up. Activity reported all ten key requests as
 written to the TV connection, with the TV response unverified by the app.
@@ -124,6 +124,12 @@ can provide the TV address privately during implementation if discovery fails.
 
 ## Completion checklist
 
+The owner marked P1-M10 Done on 2026-10-09 with the unchecked items below
+accepted as deferred verification, not as passing results. They remain
+documented in the [hardware matrix](milestone-10-hardware-matrix.md). This
+closure does not establish permission recovery, failure/switching behavior, or
+the under-150-ms latency target on hardware.
+
 The owner verified empty-install setup and that discovery returns a candidate
 through the selected mechanism. The following remaining acceptance work is
 deferred without a revisit date: empty/denied/timed-out discovery fallback to
@@ -173,7 +179,7 @@ target remains unverified.
   and `cargo test` pass (91 tests).
 - [ ] Native app review records the macOS local-network prompt/recovery and a
   sanitized hardware matrix. The matrix is recorded; prompt/recovery review is
-  deferred without a revisit date. Only then mark M10 Done.
+  deferred without a revisit date under the owner's M10 closure decision.
 
 ## Live acceptance script
 

@@ -1,8 +1,8 @@
 # P1-M10 Hardware Matrix
 
-Status: In Progress. Record only facts observed on the owner's equipment. Do
-not add LAN addresses, certificate fingerprints, device identifiers, tokens,
-or raw pairing frames.
+Status: Recorded with deferred observations. Record only facts observed on the
+owner's equipment. Do not add LAN addresses, certificate fingerprints, device
+identifiers, tokens, or raw pairing frames.
 
 | Target | Firmware | Network | Secure endpoint | Pairing | Saved-token reconnect | Discovery | Native bundle | Keys | Latency |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

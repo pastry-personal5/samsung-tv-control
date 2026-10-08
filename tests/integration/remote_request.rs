@@ -1,7 +1,7 @@
 use samsung_tv_remote::{
     application::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction},
     domain::{DeviceId, RemoteAction},
-    State,
+    ControlState,
 };
 
 #[test]
@@ -17,22 +17,22 @@ fn send_remote_action_preserves_its_target_generation_and_action() {
 
 #[test]
 fn requests_with_different_targets_are_not_equal() {
-    let cmd1 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
-    let cmd2 = SendRemoteAction::new(DeviceId::new(2), 1, RemoteAction::PowerToggle);
+    let request_one = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
+    let request_two = SendRemoteAction::new(DeviceId::new(2), 1, RemoteAction::PowerToggle);
 
-    assert_ne!(cmd1, cmd2);
+    assert_ne!(request_one, request_two);
 }
 
 #[test]
 fn requests_with_different_actions_are_not_equal() {
-    let cmd1 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
-    let cmd2 = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::Up);
+    let request_one = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::PowerToggle);
+    let request_two = SendRemoteAction::new(DeviceId::new(1), 1, RemoteAction::Up);
 
-    assert_ne!(cmd1, cmd2);
+    assert_ne!(request_one, request_two);
 }
 
 #[test]
-fn send_remote_action_accepts_each_supported_semantic_action() {
+fn send_remote_action_preserves_each_semantic_action() {
     let device_id = DeviceId::new(1);
 
     for action in [
@@ -41,7 +41,7 @@ fn send_remote_action_accepts_each_supported_semantic_action() {
         RemoteAction::Down,
         RemoteAction::Left,
         RemoteAction::Right,
-        RemoteAction::Select,
+        RemoteAction::Enter,
         RemoteAction::Back,
         RemoteAction::Home,
         RemoteAction::Mute,
@@ -56,7 +56,7 @@ fn send_remote_action_accepts_each_supported_semantic_action() {
 
 #[test]
 fn unselected_state_rejects_each_request_without_changing_its_target() {
-    let state = State::none();
+    let state = ControlState::none();
 
     for (index, action) in [
         RemoteAction::PowerToggle,
@@ -64,7 +64,7 @@ fn unselected_state_rejects_each_request_without_changing_its_target() {
         RemoteAction::Down,
         RemoteAction::Left,
         RemoteAction::Right,
-        RemoteAction::Select,
+        RemoteAction::Enter,
         RemoteAction::Back,
         RemoteAction::Home,
         RemoteAction::Mute,

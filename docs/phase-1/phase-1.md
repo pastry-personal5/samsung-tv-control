@@ -109,7 +109,7 @@ eligible result; Iced availability derives from the same state.
 
 ### P1-M10: First Live TV Connection and Control
 
-Status: In Progress
+Status: Done
 Goal: Connect the app to the owner's already powered-on TV and deliver the
 first trusted, observable end-to-end remote-control path.
 Plan: [overview](milestone-10-overview.md),
@@ -119,14 +119,20 @@ persistence, live session, bounded dispatch, UI outcomes, and native acceptance.
 The owner chose secure port 8002 only, deferred Power Toggle and wake, and
 chose local signing for the test bundle. Initial secure endpoint and consent
 probes passed. The owner verified signed-bundle Pairing, saved-token reconnect,
-and all ten current keys. Discovery, native permission recovery, and
-failure/switching checks have deferred human verification without a date.
-The latency target remains unmeasured. Source/app/text features follow later.
+and all ten current keys. Discovery fallback, native permission recovery, and
+failure/switching checks have deferred human verification without a date. The
+owner closed M10 with these limits recorded; the latency target remains
+unmeasured. Source/app/text features follow later.
 
 ### P1-M11: Clean Architecture Refactoring
 
-Status: Planned
-Goal: Improve the established live-control implementation's names, boundaries,
-and test structure without changing behavior or persisted data.
+Status: Done
+Goal: Move live-control orchestration from Iced to the application layer,
+clarify names and tests, and write saved action values as `Enter`. The owner
+does not require old saved records or older app builds to remain readable.
 Plan: [overview](milestone-11-overview.md),
 [architecture](milestone-11-architecture.md)
+Notes: The application coordinator now owns the live-control workflow, and
+`main.rs` composes its adapters. New saved action values use `Enter`; old
+`Select` records are not read or migrated. All Cargo gates pass (97 tests).
+M10's deferred hardware checks remain deferred.

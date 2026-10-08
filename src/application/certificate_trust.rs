@@ -2,7 +2,7 @@ use sha2::{Digest, Sha256};
 
 use crate::domain::DeviceId;
 
-use super::target::TvHost;
+use super::tv_address::TvHost;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CertificatePin([u8; 32]);
@@ -48,7 +48,7 @@ pub enum TrustError {
     Corrupt,
 }
 
-pub trait TrustStore {
+pub trait CertificateTrustStore {
     fn load(&self, device: DeviceId) -> Result<Option<TrustRecord>, TrustError>;
     fn save(&self, device: DeviceId, record: &TrustRecord) -> Result<(), TrustError>;
     fn delete(&self, device: DeviceId) -> Result<(), TrustError>;

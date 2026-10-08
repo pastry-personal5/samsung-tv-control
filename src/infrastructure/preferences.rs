@@ -7,9 +7,11 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::device::{DeviceRepository, RepositoryError, SavedDevice};
-use crate::application::target::TvHost;
-use crate::application::trust::{CertificatePin, TrustError, TrustRecord, TrustStore};
+use crate::application::certificate_trust::{
+    CertificatePin, CertificateTrustStore, TrustError, TrustRecord,
+};
+use crate::application::device_repository::{DeviceRepository, RepositoryError, SavedDevice};
+use crate::application::tv_address::TvHost;
 use crate::domain::DeviceId;
 use crate::domain::RemoteAction;
 
@@ -20,7 +22,7 @@ pub struct LocalDeviceRepository {
     file: JsonFile,
 }
 
-pub struct LocalTrustStore {
+pub struct LocalCertificateTrustStore {
     file: JsonFile,
 }
 
@@ -84,7 +86,7 @@ impl LocalDeviceRepository {
     }
 }
 
-impl LocalTrustStore {
+impl LocalCertificateTrustStore {
     pub fn new(app_data_dir: &Path) -> Self {
         Self {
             file: JsonFile::new(app_data_dir.join("trust.json")),
@@ -196,7 +198,7 @@ impl LocalDeviceRepository {
     }
 }
 
-impl TrustStore for LocalTrustStore {
+impl CertificateTrustStore for LocalCertificateTrustStore {
     fn load(&self, device: DeviceId) -> Result<Option<TrustRecord>, TrustError> {
         let _guard = self.file.lock.lock().map_err(|_| TrustError::Unavailable)?;
         let disk = self.load_disk()?;
@@ -227,7 +229,7 @@ impl TrustStore for LocalTrustStore {
     }
 }
 
-impl LocalTrustStore {
+impl LocalCertificateTrustStore {
     fn load_disk(&self) -> Result<DiskTrust, TrustError> {
         let disk: DiskTrust = self
             .file
@@ -341,7 +343,7 @@ mod tests {
     fn device_and_trust_records_roundtrip_without_a_token_in_preferences() {
         let dir = tempfile::tempdir().unwrap();
         let repository = LocalDeviceRepository::new(dir.path());
-        let trust = LocalTrustStore::new(dir.path());
+        let trust = LocalCertificateTrustStore::new(dir.path());
         let device = SavedDevice {
             id: DeviceId::generate(),
             label: "TV".to_owned(),
@@ -369,5 +371,47 @@ mod tests {
         assert!(repository.list().unwrap().is_empty());
         assert_eq!(repository.selected().unwrap(), None);
         assert!(trust.load(device.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn enter_action_roundtrips_with_the_new_stored_spelling() {
+        let dir = tempfile::tempdir().unwrap();
+        let repository = LocalDeviceRepository::new(dir.path());
+        let device = SavedDevice {
+            id: DeviceId::generate(),
+            label: "TV".to_owned(),
+            host: TvHost::parse("tv.local").unwrap(),
+            verified_actions: vec![RemoteAction::Enter],
+        };
+
+        repository.save(&device).unwrap();
+
+        let saved: serde_json::Value =
+            serde_json::from_slice(&fs::read(dir.path().join("devices.json")).unwrap()).unwrap();
+        assert_eq!(saved["devices"][0]["verified_actions"][0], "Enter");
+        assert_eq!(repository.list().unwrap(), vec![device]);
+    }
+
+    #[test]
+    fn old_select_action_is_rejected_without_changing_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devices.json");
+        let id = DeviceId::generate().to_string();
+        let old_file = serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "selected": id,
+            "devices": [{
+                "id": id,
+                "label": "TV",
+                "host": "tv.local",
+                "verified_actions": ["Select"]
+            }]
+        }))
+        .unwrap();
+        fs::write(&path, &old_file).unwrap();
+        let repository = LocalDeviceRepository::new(dir.path());
+
+        assert_eq!(repository.list(), Err(RepositoryError::Corrupt));
+        assert_eq!(fs::read(&path).unwrap(), old_file);
     }
 }

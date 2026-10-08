@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use futures_util::{stream, Sink, SinkExt, Stream, StreamExt};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{lookup_host, TcpStream};
 use tokio::sync::mpsc;
@@ -15,10 +15,14 @@ use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_tungstenite::{client_async_with_config, WebSocketStream};
 use url::Url;
 
-use crate::application::dispatcher::RequestId;
-use crate::application::secret::PairingToken;
-use crate::application::target::{TargetError, TvHost};
-use crate::application::trust::CertificatePin;
+use crate::application::certificate_trust::CertificatePin;
+use crate::application::credential_store::PairingToken;
+use crate::application::remote_dispatcher::RequestId;
+use crate::application::tv_address::{TargetError, TvHost};
+use crate::application::tv_session::{
+    ActiveTvSession, ProbeObservation, SessionFuture, TvConnection, TvGateway, TvSessionControl,
+    TvSessionError as SessionError, TvSessionEvent,
+};
 use crate::domain::RemoteAction;
 
 use super::codec::{encode_click, parse_channel_event, ChannelEvent, MAX_EVENT_BYTES};
@@ -28,29 +32,6 @@ const AUTH_TIMEOUT: Duration = Duration::from_secs(45);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(4);
 const CLIENT_NAME: &str = "Samsung TV Remote for macOS";
 const MAX_METADATA_BYTES: usize = 64 * 1024;
-
-#[derive(Debug, Clone)]
-pub struct ProbeObservation {
-    pub pin: CertificatePin,
-    pub name: Option<String>,
-    pub model: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionError {
-    Target(TargetError),
-    Offline,
-    Timeout,
-    Tls,
-    CertificateChanged,
-    WebSocket,
-    PairingDenied,
-    TokenRejected,
-    PairingTokenMissing,
-    Protocol,
-    UncertainWrite,
-    UnsupportedAction,
-}
 
 pub struct Session {
     socket: WebSocketStream<TlsStream<TcpStream>>,
@@ -75,6 +56,78 @@ pub struct ActiveSession {
     pub commands: mpsc::Sender<SessionCommand>,
     pub events: mpsc::Receiver<SessionEvent>,
     pub task: tokio::task::JoinHandle<()>,
+}
+
+#[derive(Debug, Default)]
+pub struct SamsungGateway;
+
+struct SessionControl {
+    commands: mpsc::Sender<SessionCommand>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl TvSessionControl for SessionControl {
+    fn try_click(&self, id: RequestId, action: RemoteAction) -> bool {
+        self.commands
+            .try_send(SessionCommand::Click { id, action })
+            .is_ok()
+    }
+
+    fn abort(&mut self) {
+        self.task.abort();
+    }
+}
+
+impl TvConnection for Session {
+    fn await_authorized(
+        &mut self,
+        reconnecting: bool,
+    ) -> SessionFuture<'_, Result<Option<PairingToken>, SessionError>> {
+        Box::pin(Session::await_authorized(self, reconnecting))
+    }
+
+    fn start(self: Box<Self>) -> ActiveTvSession {
+        let active = (*self).start_actor();
+        let events = stream::unfold(active.events, |mut receiver| async move {
+            receiver.recv().await.map(|event| (event, receiver))
+        })
+        .map(|event| match event {
+            SessionEvent::Written(id) => TvSessionEvent::Written(id),
+            SessionEvent::NotSent(id) => TvSessionEvent::NotSent(id),
+            SessionEvent::Uncertain(id) => TvSessionEvent::Uncertain(id),
+            SessionEvent::Disconnected => TvSessionEvent::Disconnected,
+            SessionEvent::TokenRejected => TvSessionEvent::TokenRejected,
+        });
+        ActiveTvSession {
+            control: Box::new(SessionControl {
+                commands: active.commands,
+                task: active.task,
+            }),
+            events: Box::pin(events),
+        }
+    }
+}
+
+impl TvGateway for SamsungGateway {
+    fn probe(
+        &self,
+        host: TvHost,
+    ) -> SessionFuture<'static, Result<ProbeObservation, SessionError>> {
+        Box::pin(async move { probe_tv(&host).await })
+    }
+
+    fn connect(
+        &self,
+        host: TvHost,
+        pin: CertificatePin,
+        token: Option<PairingToken>,
+    ) -> SessionFuture<'static, Result<Box<dyn TvConnection>, SessionError>> {
+        Box::pin(async move {
+            self::connect(&host, pin, token.as_ref())
+                .await
+                .map(|session| Box::new(session) as Box<dyn TvConnection>)
+        })
+    }
 }
 
 /// Reads the certificate without sending a pairing request or credential.
@@ -131,7 +184,7 @@ where
     )
     .await
     .map_err(|_| SessionError::Timeout)?
-    .map_err(|_| SessionError::WebSocket)?;
+    .map_err(|_| SessionError::RemoteChannel)?;
     Ok(socket)
 }
 
@@ -157,7 +210,7 @@ impl Session {
     }
 
     /// Runs the sole socket owner. Its one-slot command channel is a transport
-    /// handoff; application admission and ordering stay with Dispatcher.
+    /// handoff; application admission and ordering stay with RemoteDispatcher.
     pub fn start_actor(self) -> ActiveSession {
         let (command_sender, commands) = mpsc::channel(1);
         let (event_sender, event_receiver) = mpsc::channel(16);

@@ -1,6 +1,6 @@
-use super::message::Message;
+use super::ui_message::Message;
 use super::view_model::{
-    feed_is_at_bottom, remote_action_label, ControlState, PrimaryView, ViewModel,
+    feed_is_at_bottom, remote_action_label, PrimaryView, RemoteControlViewState, ViewModel,
     MAX_MESSAGE_PANE_HEIGHT, MIN_MESSAGE_PANE_HEIGHT,
 };
 use crate::{RemoteAction, SendRemoteAction};
@@ -70,7 +70,7 @@ fn navigation_button(
 
 fn primary_view(
     primary_view: PrimaryView,
-    control_state: &ControlState,
+    control_state: &RemoteControlViewState,
 ) -> Element<'static, Message> {
     match primary_view {
         PrimaryView::Remote => remote_view(control_state),
@@ -95,7 +95,7 @@ fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'sta
         .into()
 }
 
-fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
+fn remote_view(control_state: &RemoteControlViewState) -> Element<'static, Message> {
     let availability = control_state
         .disabled_reason
         .unwrap_or("Verified remote actions are available.");
@@ -109,7 +109,7 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
         remote_button("Up", RemoteAction::Up, control_state),
         row![
             remote_button("Left", RemoteAction::Left, control_state),
-            remote_button("Enter", RemoteAction::Select, control_state),
+            remote_button("Enter", RemoteAction::Enter, control_state),
             remote_button("Right", RemoteAction::Right, control_state)
         ]
         .spacing(8),
@@ -159,7 +159,7 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
 fn remote_button(
     label: &'static str,
     action: RemoteAction,
-    control_state: &ControlState,
+    control_state: &RemoteControlViewState,
 ) -> Element<'static, Message> {
     let button = button(label);
     if let Some(device) = control_state
@@ -275,8 +275,8 @@ fn activity_view(view_model: &ViewModel) -> Element<'static, Message> {
 
 pub struct SettingsView<'a> {
     pub address: &'a str,
-    pub candidates: &'a [crate::application::target::TvHost],
-    pub saved_devices: &'a [crate::application::device::SavedDevice],
+    pub candidates: &'a [crate::application::tv_address::TvHost],
+    pub saved_devices: &'a [crate::application::device_repository::SavedDevice],
     pub fingerprint: Option<String>,
     pub observed_name: Option<String>,
     pub observed_model: Option<String>,

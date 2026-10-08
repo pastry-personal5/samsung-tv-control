@@ -1,6 +1,6 @@
 # P1-M10: First Live TV Connection and Control
 
-Status: In Progress
+Status: Done
 
 ## Architecture
 

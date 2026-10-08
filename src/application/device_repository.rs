@@ -1,6 +1,6 @@
 use crate::domain::{DeviceDisplay, DeviceId, RemoteAction};
 
-use super::target::TvHost;
+use super::tv_address::TvHost;
 
 /// Non-secret saved TV information. Credentials and certificate trust have
 /// separate stores, both keyed by this generated local record ID.

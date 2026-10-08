@@ -4,8 +4,9 @@ use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::time::{timeout, Instant};
 
-use crate::application::discovery::{DeviceDiscovery, DiscoveryError};
-use crate::application::target::{is_local_tv_address, TvHost};
+use crate::application::tv_address::{is_local_tv_address, TvHost};
+use crate::application::tv_discovery::{DiscoveryError, TvDiscovery};
+use crate::application::tv_session::SessionFuture;
 
 const SEARCH: &[u8] = b"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: ssdp:all\r\n\r\n";
 const SEARCH_WINDOW: Duration = Duration::from_secs(5);
@@ -14,36 +15,38 @@ const MAX_CANDIDATES: usize = 32;
 #[derive(Debug, Default)]
 pub struct SsdpDiscovery;
 
-impl DeviceDiscovery for SsdpDiscovery {
-    async fn discover(&self) -> Result<Vec<TvHost>, DiscoveryError> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await.map_err(classify_error)?;
-        socket
-            .send_to(SEARCH, "239.255.255.250:1900")
-            .await
-            .map_err(classify_error)?;
-        let deadline = Instant::now() + SEARCH_WINDOW;
-        let mut candidates = Vec::new();
-        let mut buffer = [0u8; 2049];
-        while candidates.len() < MAX_CANDIDATES {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                break;
-            }
-            let (length, peer) = match timeout(remaining, socket.recv_from(&mut buffer)).await {
-                Ok(Ok(response)) => response,
-                Ok(Err(error)) => return Err(classify_error(error)),
-                Err(_) => break,
-            };
-            if length > 2048 {
-                continue;
-            }
-            if let Some(host) = candidate_from_response(&buffer[..length], peer) {
-                if !candidates.contains(&host) {
-                    candidates.push(host);
+impl TvDiscovery for SsdpDiscovery {
+    fn discover(&self) -> SessionFuture<'_, Result<Vec<TvHost>, DiscoveryError>> {
+        Box::pin(async move {
+            let socket = UdpSocket::bind("0.0.0.0:0").await.map_err(classify_error)?;
+            socket
+                .send_to(SEARCH, "239.255.255.250:1900")
+                .await
+                .map_err(classify_error)?;
+            let deadline = Instant::now() + SEARCH_WINDOW;
+            let mut candidates = Vec::new();
+            let mut buffer = [0u8; 2049];
+            while candidates.len() < MAX_CANDIDATES {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let (length, peer) = match timeout(remaining, socket.recv_from(&mut buffer)).await {
+                    Ok(Ok(response)) => response,
+                    Ok(Err(error)) => return Err(classify_error(error)),
+                    Err(_) => break,
+                };
+                if length > 2048 {
+                    continue;
+                }
+                if let Some(host) = candidate_from_response(&buffer[..length], peer) {
+                    if !candidates.contains(&host) {
+                        candidates.push(host);
+                    }
                 }
             }
-        }
-        Ok(candidates)
+            Ok(candidates)
+        })
     }
 }
 

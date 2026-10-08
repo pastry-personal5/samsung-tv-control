@@ -1,4 +1,4 @@
-use crate::application::secret::PairingToken;
+use crate::application::credential_store::PairingToken;
 use crate::domain::RemoteAction;
 use serde_json::Value;
 
@@ -26,7 +26,7 @@ pub fn encode_click(action: RemoteAction) -> Result<String, CodecError> {
         RemoteAction::Down => "KEY_DOWN",
         RemoteAction::Left => "KEY_LEFT",
         RemoteAction::Right => "KEY_RIGHT",
-        RemoteAction::Select => "KEY_ENTER",
+        RemoteAction::Enter => "KEY_ENTER",
         RemoteAction::Back => "KEY_RETURN",
         RemoteAction::Home => "KEY_HOME",
         RemoteAction::Mute => "KEY_MUTE",

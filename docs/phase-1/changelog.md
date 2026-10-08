@@ -4,6 +4,52 @@ Status: Active
 
 ## Entries
 
+- 2026-10-09 — Completed P1-M11. Moved restoration, discovery/probe,
+  Pairing/re-pair, reconnect, selection/session generations, dispatch,
+  cancellation, and stale-event policy from Iced into
+  `application::tv_control_coordinator`; `main.rs` now composes the concrete
+  adapters. Added an application `tv_session` port and kept Samsung sockets,
+  channels, frames, and `KEY_*` mappings in infrastructure. Renamed
+  `RemoteAction::Select` to `Enter`; Samsung still sends `KEY_ENTER`. Renamed
+  application modules `command` → `remote_request`, `state` → `control_state`,
+  `dispatcher` → `remote_dispatcher`, `device` → `device_repository`,
+  `device_service` → `tv_setup_service`, `discovery` → `tv_discovery`,
+  `secret` → `credential_store`, `trust` → `certificate_trust`, and `target` →
+  `tv_address`; renamed infrastructure `ssdp` → `ssdp_discovery`, `storage` →
+  `preferences`, and moved `keychain` under `macos`; renamed Iced `message` →
+  `ui_message`. Retained `device` for saved-record identity vocabulary and
+  `Select` only in historical records, UI selection wording, and the legacy
+  failure fixture. New `verified_actions` values serialize as `Enter`; old
+  files containing `Select` are not read or migrated, but remain untouched
+  when loading fails. README and M11 architecture document manual backup and
+  re-pair. Keychain identities, credentials, certificate pins, bundle ID,
+  and network behavior were not changed. Baseline and final Cargo format,
+  Clippy, and test gates pass (92 → 97 tests: 80 unit and 17 integration in
+  the final tree). No live-TV exercise was performed; M10's deferred hardware
+  checks remain deferred.
+
+- 2026-10-09 — Owner revised P1-M11's data decision: no compatibility is
+  required for pre-M11 saved records or older app builds. Removed the planned
+  `Select` decoder and automatic migration. The plan now requires an explicit
+  storage error for an old file, a recoverable manual reset/re-pair procedure,
+  and no automatic deletion of old preferences or credentials. This supersedes
+  the earlier migration decision below; no P1-M11 code had changed yet.
+
+- 2026-10-09 — Reviewed and revised P1-M11 with the owner. The target now
+  extracts live session and dispatch orchestration from Iced into an
+  application coordinator. The owner chose to migrate saved
+  `verified_actions` values from `Select` to `Enter`, keep old records readable
+  in the updated app, and waive rollback compatibility with older app builds.
+  Added migration, boundary, and deterministic completion criteria to the
+  plan. No P1-M11 implementation has started.
+
+- 2026-10-09 — Owner marked P1-M10 Done. The milestone closes with the
+  previously recorded hardware verification deferred, not passed: discovery
+  fallback, native local-network permission recovery, re-pair/forget and
+  failure/switching paths, remaining bundle review, and latency measurement.
+  The under-150-ms target remains unverified. The sanitized hardware matrix
+  remains the source of tested support claims.
+
 - 2026-10-09 — Owner deferred the remaining P1-M10 human acceptance work
   without a revisit date: empty/denied/timed-out discovery fallback to manual
   address entry; signed-bundle local-network permission alert, denial recovery,

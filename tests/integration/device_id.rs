@@ -1,7 +1,7 @@
 use samsung_tv_remote::domain::{DeviceDisplay, DeviceId};
 
 #[test]
-fn device_id_equality() {
+fn equal_device_ids_compare_equal_and_distinct_ids_do_not() {
     let id1 = DeviceId::new(100);
     let id2 = DeviceId::new(100);
     let id3 = DeviceId::new(200);
@@ -11,7 +11,7 @@ fn device_id_equality() {
 }
 
 #[test]
-fn device_id_hash_consistency() {
+fn equal_device_ids_address_the_same_map_entry() {
     use std::collections::HashMap;
 
     let mut map = HashMap::new();
@@ -22,7 +22,7 @@ fn device_id_hash_consistency() {
 }
 
 #[test]
-fn device_id_display() {
+fn device_id_formats_as_a_local_record_key() {
     let id = DeviceId::new(999);
     assert_eq!(format!("{}", id), "dev_999");
 }
@@ -49,7 +49,7 @@ fn device_display_preserves_its_typed_id() {
 }
 
 #[test]
-fn device_display_label_borrow() {
+fn device_display_exposes_its_label_by_borrow() {
     let id = DeviceId::new(200);
     let display = DeviceDisplay::new(id, "Bedroom TV");
 
@@ -58,13 +58,13 @@ fn device_display_label_borrow() {
 }
 
 #[test]
-fn device_id_is_copy() {
+fn device_ids_can_be_copied_into_requests() {
     fn takes_copy<T: Copy>(_: T) {}
     takes_copy(DeviceId::new(1));
 }
 
 #[test]
-fn device_id_is_hash() {
+fn device_ids_can_be_found_in_a_hash_set() {
     use std::collections::HashSet;
     let mut set = HashSet::new();
     set.insert(DeviceId::new(1));

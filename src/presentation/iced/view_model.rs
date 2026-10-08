@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::application::{ConnectionState, ControlStatus, PairingState, RemoteActionRejection};
+use crate::ControlState;
 use crate::RemoteAction;
-use crate::State;
 
 pub const DEFAULT_MESSAGE_PANE_HEIGHT: u16 = 176;
 pub const MIN_MESSAGE_PANE_HEIGHT: u16 = 120;
@@ -16,7 +16,7 @@ pub(super) const fn remote_action_label(action: RemoteAction) -> &'static str {
         RemoteAction::Down => "Down",
         RemoteAction::Left => "Left",
         RemoteAction::Right => "Right",
-        RemoteAction::Select => "Enter",
+        RemoteAction::Enter => "Enter",
         RemoteAction::Back => "Back",
         RemoteAction::Home => "Home",
         RemoteAction::Mute => "Mute",
@@ -228,7 +228,7 @@ impl MessageFeed {
 /// This exposes the no-selected-TV fact and the reason for disabled controls
 /// without exposing Iced or application implementation details.
 #[derive(Debug, Clone)]
-pub struct ControlState {
+pub struct RemoteControlViewState {
     /// Safe display information for the selected device, if any.
     pub selected_device: Option<crate::DeviceDisplay>,
     /// The application-owned generation associated with the projection.
@@ -242,9 +242,9 @@ pub struct ControlState {
     action_statuses: Vec<(RemoteAction, Option<&'static str>)>,
 }
 
-impl ControlState {
+impl RemoteControlViewState {
     /// Creates a control state projection from the application state.
-    pub fn from_application_state(app_state: &State) -> Self {
+    pub fn from_application_state(app_state: &ControlState) -> Self {
         let selected_device = app_state.selected_device_display().cloned();
         let selection_generation = app_state.selection_generation();
         let pairing = pairing_status_text(app_state.pairing_state());
@@ -299,23 +299,23 @@ pub struct ViewModel {
     primary_view: PrimaryView,
     message_pane_height: u16,
     messages: MessageFeed,
-    control_state: ControlState,
+    control_state: RemoteControlViewState,
     activity: VecDeque<String>,
 }
 
 impl Default for ViewModel {
     fn default() -> Self {
-        Self::new(&State::none())
+        Self::new(&ControlState::none())
     }
 }
 
 impl ViewModel {
-    pub fn new(app_state: &State) -> Self {
+    pub fn new(app_state: &ControlState) -> Self {
         Self {
             primary_view: PrimaryView::Remote,
             message_pane_height: DEFAULT_MESSAGE_PANE_HEIGHT,
             messages: MessageFeed::new(MESSAGE_FEED_CAPACITY),
-            control_state: ControlState::from_application_state(app_state),
+            control_state: RemoteControlViewState::from_application_state(app_state),
             activity: VecDeque::new(),
         }
     }
@@ -344,13 +344,13 @@ impl ViewModel {
     }
 
     /// Returns the control state projection.
-    pub fn control_state(&self) -> &ControlState {
+    pub fn control_state(&self) -> &RemoteControlViewState {
         &self.control_state
     }
 
     /// Updates the control state from the application state.
-    pub fn update_control_state(&mut self, app_state: &State) {
-        self.control_state = ControlState::from_application_state(app_state);
+    pub fn update_control_state(&mut self, app_state: &ControlState) {
+        self.control_state = RemoteControlViewState::from_application_state(app_state);
     }
 
     pub fn activity(&self) -> &VecDeque<String> {
@@ -377,7 +377,7 @@ mod tests {
             (RemoteAction::Down, "Down"),
             (RemoteAction::Left, "Left"),
             (RemoteAction::Right, "Right"),
-            (RemoteAction::Select, "Enter"),
+            (RemoteAction::Enter, "Enter"),
             (RemoteAction::Back, "Back"),
             (RemoteAction::Home, "Home"),
             (RemoteAction::Mute, "Mute"),
@@ -391,8 +391,8 @@ mod tests {
 
     #[test]
     fn new_state_has_no_selected_tv() {
-        let app_state = State::none();
-        let control_state = ControlState::from_application_state(&app_state);
+        let app_state = ControlState::none();
+        let control_state = RemoteControlViewState::from_application_state(&app_state);
 
         assert_eq!(control_state.selected_device, None);
         assert!(control_state.is_no_tv_selected());
@@ -400,8 +400,8 @@ mod tests {
 
     #[test]
     fn control_state_provides_disabled_reason_for_no_tv() {
-        let app_state = State::none();
-        let control_state = ControlState::from_application_state(&app_state);
+        let app_state = ControlState::none();
+        let control_state = RemoteControlViewState::from_application_state(&app_state);
 
         assert_eq!(
             control_state.disabled_reason,
@@ -411,13 +411,13 @@ mod tests {
 
     #[test]
     fn control_state_projects_safe_selected_device_and_generation() {
-        let mut app_state = State::none();
+        let mut app_state = ControlState::none();
         let _ = app_state.select_device(crate::DeviceDisplay::new(
             crate::DeviceId::new(9),
             "Studio TV",
         ));
 
-        let control_state = ControlState::from_application_state(&app_state);
+        let control_state = RemoteControlViewState::from_application_state(&app_state);
 
         assert_eq!(
             control_state
@@ -435,7 +435,7 @@ mod tests {
 
     #[test]
     fn control_state_projects_distinct_lifecycle_labels_and_safe_guidance() {
-        let mut app_state = State::none();
+        let mut app_state = ControlState::none();
         let _ = app_state.select_device(crate::DeviceDisplay::new(
             crate::DeviceId::new(9),
             "Studio TV",
@@ -444,7 +444,7 @@ mod tests {
         let _ = app_state.set_pairing_state(generation, PairingState::Failed);
         let _ = app_state.set_connection_state(generation, ConnectionState::Connecting);
 
-        let control_state = ControlState::from_application_state(&app_state);
+        let control_state = RemoteControlViewState::from_application_state(&app_state);
 
         assert_eq!(control_state.pairing.label, "Pairing needs attention");
         assert_eq!(control_state.pairing.guidance, "Try pairing this TV again.");
@@ -457,20 +457,24 @@ mod tests {
 
     #[test]
     fn control_state_enables_only_when_the_application_policy_is_eligible() {
-        let mut app_state = State::none();
+        let mut app_state = ControlState::none();
         let _ = app_state.select_device(crate::DeviceDisplay::new(
             crate::DeviceId::new(9),
             "Studio TV",
         ));
         let generation = app_state.selection_generation();
 
-        assert!(!ControlState::from_application_state(&app_state).remote_actions_enabled());
+        assert!(
+            !RemoteControlViewState::from_application_state(&app_state).remote_actions_enabled()
+        );
         let _ = app_state.set_pairing_state(generation, PairingState::Ready);
-        assert!(!ControlState::from_application_state(&app_state).remote_actions_enabled());
+        assert!(
+            !RemoteControlViewState::from_application_state(&app_state).remote_actions_enabled()
+        );
         let _ = app_state.set_connection_state(generation, ConnectionState::Ready);
         let _ = app_state.set_verified_actions(generation, [RemoteAction::Up]);
 
-        let control_state = ControlState::from_application_state(&app_state);
+        let control_state = RemoteControlViewState::from_application_state(&app_state);
         assert!(control_state.remote_actions_enabled());
         assert_eq!(control_state.disabled_reason, None);
         assert_eq!(
