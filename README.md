@@ -6,11 +6,14 @@ It is intended to provide responsive, keyboard-friendly control of compatible Sa
 
 ## Status
 
-The repository has a native Iced GUI shell with Remote, Sources, Apps, Text
-Input, and Settings views. It includes pure session selection, pairing and
-connection state projection, and remote-action admission policy. Device
-discovery, pairing, connection, and remote-command transport are not
-implemented yet.
+The repository has a native Iced app with Remote, Sources, Apps, Text Input,
+and Settings views. P1-M10 secure TV setup and control are in progress: SSDP
+discovery and manual address entry, certificate confirmation, Keychain-backed
+pairing, saved-TV reconnect, and bounded remote dispatch are implemented.
+The owner verified Pairing, saved-token reconnect, and all ten current key
+actions from a signed app bundle. Discovery, local-network permission recovery,
+and failure/switching paths still need human verification. The latency target
+has not been measured.
 
 ## Technology and architecture
 

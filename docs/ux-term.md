@@ -50,6 +50,42 @@ here before using it elsewhere.
 | **Mute** | Toggles the TV's mute state. |
 | **Volume Down**, **Volume Up** | Step controls that request a decrease or increase in TV volume. |
 
+## Keyboard shortcuts
+
+These are the owner-approved action and shortcut pairs. A Remote View shortcut
+works only while Remote View is active in the main window. The app ignores
+repeated key presses and does not send a shortcut when a text field or other
+control has captured the key.
+
+| Canonical action | Keyboard shortcut(s) |
+| --- | --- |
+| **Up** | ↑ |
+| **Down** | ↓ |
+| **Left** | ← |
+| **Right** | → |
+| **Enter** | Return / Enter |
+| **Back** | Esc |
+| **Home** | Home |
+| **Mute** | M |
+| **Volume Down** | `-` (hyphen) |
+| **Volume Up** | `+`, including Shift+= on a MacBook Pro keyboard |
+
+The following shortcuts navigate the app. View selection and pane resizing
+apply to the main window; opening Settings also works from the Settings Window.
+
+| Canonical action | Keyboard shortcut(s) |
+| --- | --- |
+| **Remote View** | ⌘1 |
+| **Sources View** | ⌘2 |
+| **Apps View** | ⌘3 |
+| **Text Input View** | ⌘4 |
+| Open **Settings Window** | ⌘, |
+| Increase **Global Messages Pane** height | ⌘⇧↑ |
+| Decrease **Global Messages Pane** height | ⌘⇧↓ |
+
+**Power Toggle** and **Volume Slider** have no keyboard shortcut in this
+milestone.
+
 ## Device and capability states
 
 | Term | Meaning and usage |
@@ -73,6 +109,8 @@ here before using it elsewhere.
   separate facts.
 - Use **Settings Sidebar** and **Settings Main Pane** only for the Settings
   Window. Use **Sidebar** and **Main Pane** for the main app window.
+- Interview the owner before adding or changing any keyboard shortcut. Record
+  the approved action and key pair in this document before implementation.
 
 See [planned information architecture](planned-information-architecture.md)
 and [planned GUI](ux-gui.md) for the hierarchy and control layout.

@@ -2,11 +2,20 @@ use std::fmt;
 
 /// Opaque local identity for a saved device record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DeviceId(u64);
+pub struct DeviceId(u128);
 
 impl DeviceId {
     pub const fn new(id: u64) -> Self {
-        Self(id)
+        Self(id as u128)
+    }
+
+    /// Generates a local record ID independently of TV names or network data.
+    pub fn generate() -> Self {
+        Self(uuid::Uuid::new_v4().as_u128())
+    }
+
+    pub fn parse_record_key(key: &str) -> Option<Self> {
+        key.strip_prefix("dev_")?.parse::<u128>().ok().map(Self)
     }
 }
 

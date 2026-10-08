@@ -2,6 +2,9 @@
 
 Research date: 2026-10-05
 
+Later project decision (2026-10-08): P1-M10 uses only secure port 8002. The
+port-8001 fallback discussed below remains research context, not M10 scope.
+
 ## Recommendation
 
 Build the first release around the **local Tizen WebSocket remote API** for

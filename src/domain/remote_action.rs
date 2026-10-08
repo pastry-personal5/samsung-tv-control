@@ -1,5 +1,5 @@
 /// Finite semantic actions exposed by the Remote View.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum RemoteAction {
     /// Toggle the TV power state.
     PowerToggle,
@@ -13,4 +13,23 @@ pub enum RemoteAction {
     Mute,
     VolumeUp,
     VolumeDown,
+}
+
+impl RemoteAction {
+    pub const LIVE_ACTIONS: [Self; 10] = [
+        Self::Up,
+        Self::Down,
+        Self::Left,
+        Self::Right,
+        Self::Select,
+        Self::Back,
+        Self::Home,
+        Self::Mute,
+        Self::VolumeUp,
+        Self::VolumeDown,
+    ];
+
+    pub const fn is_deferred(self) -> bool {
+        matches!(self, Self::PowerToggle)
+    }
 }

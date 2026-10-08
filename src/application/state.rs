@@ -50,6 +50,7 @@ pub struct State {
     selection_generation: u64,
     pairing: PairingState,
     connection: ConnectionState,
+    verified_actions: Vec<RemoteAction>,
 }
 
 impl State {
@@ -60,6 +61,7 @@ impl State {
             selection_generation: 0,
             pairing: PairingState::NotStarted,
             connection: ConnectionState::NotConnected,
+            verified_actions: Vec::new(),
         }
     }
 
@@ -107,6 +109,13 @@ impl State {
         true
     }
 
+    /// Starts a new selection epoch for re-pairing the same saved record.
+    pub fn restart_selection(&mut self, device: DeviceDisplay) {
+        self.selection = Selection::Selected(device);
+        self.selection_generation = self.selection_generation.saturating_add(1);
+        self.reset_lifecycle();
+    }
+
     /// Clears the session selection and starts a new epoch when one existed.
     pub fn clear_selection(&mut self) -> bool {
         if matches!(self.selection, Selection::None) {
@@ -145,7 +154,8 @@ impl State {
         result
     }
 
-    pub fn control_status(&self) -> ControlStatus {
+    /// Availability of one action, using the same policy as dispatch admission.
+    pub fn control_status(&self, action: RemoteAction) -> ControlStatus {
         let Some(target) = self.selected_device() else {
             return ControlStatus::Unavailable(RemoteActionRejection::NoSelectedTv);
         };
@@ -153,11 +163,32 @@ impl State {
         match self.evaluate_remote_action(SendRemoteAction::new(
             target,
             self.selection_generation,
-            RemoteAction::PowerToggle,
+            action,
         )) {
             RemoteActionOutcome::Eligible(_) => ControlStatus::Available,
             RemoteActionOutcome::Rejected { reason, .. } => ControlStatus::Unavailable(reason),
         }
+    }
+
+    /// Records hardware-verified actions for the current selected generation.
+    /// Unknown actions remain unavailable until the selected TV has been checked.
+    pub fn set_verified_actions(
+        &mut self,
+        generation: u64,
+        actions: impl IntoIterator<Item = RemoteAction>,
+    ) -> LifecycleUpdateResult {
+        let result = self.validate_lifecycle_generation(generation);
+        if result == LifecycleUpdateResult::Applied {
+            self.verified_actions = actions
+                .into_iter()
+                .filter(|action| !action.is_deferred())
+                .collect();
+        }
+        result
+    }
+
+    pub fn is_action_verified(&self, action: RemoteAction) -> bool {
+        self.verified_actions.contains(&action)
     }
 
     /// Applies the pure remote-command admission policy to one request.
@@ -180,6 +211,10 @@ impl State {
             Some(RemoteActionRejection::PairingRequired)
         } else if self.connection != ConnectionState::Ready {
             Some(RemoteActionRejection::NotConnected)
+        } else if request.action().is_deferred() {
+            Some(RemoteActionRejection::DeferredAction)
+        } else if !self.verified_actions.contains(&request.action()) {
+            Some(RemoteActionRejection::UnverifiedAction)
         } else {
             None
         };
@@ -193,6 +228,7 @@ impl State {
     fn reset_lifecycle(&mut self) {
         self.pairing = PairingState::NotStarted;
         self.connection = ConnectionState::NotConnected;
+        self.verified_actions.clear();
     }
 
     fn validate_lifecycle_generation(&self, generation: u64) -> LifecycleUpdateResult {
@@ -217,7 +253,7 @@ mod tests {
         assert_eq!(state.selected_device(), None);
         assert_eq!(State::default().selected_device(), None);
         assert_eq!(
-            state.control_status(),
+            state.control_status(RemoteAction::Up),
             ControlStatus::Unavailable(RemoteActionRejection::NoSelectedTv)
         );
     }
@@ -308,8 +344,7 @@ mod tests {
         }
 
         let _ = state.set_pairing_state(generation, PairingState::Ready);
-        let request =
-            SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::PowerToggle);
+        let request = SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::Up);
         assert_eq!(
             state.evaluate_remote_action(request.clone()),
             RemoteActionOutcome::Rejected {
@@ -319,13 +354,24 @@ mod tests {
         );
 
         let _ = state.set_connection_state(generation, ConnectionState::Ready);
-        let request =
-            SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::PowerToggle);
+        let _ = state.set_verified_actions(generation, [RemoteAction::Up]);
+        let request = SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::Up);
         assert_eq!(
             state.evaluate_remote_action(request.clone()),
             RemoteActionOutcome::Eligible(request)
         );
-        assert_eq!(state.control_status(), ControlStatus::Available);
+        assert_eq!(
+            state.control_status(RemoteAction::Up),
+            ControlStatus::Available
+        );
+        assert_eq!(
+            state.control_status(RemoteAction::PowerToggle),
+            ControlStatus::Unavailable(RemoteActionRejection::DeferredAction)
+        );
+        assert_eq!(
+            state.control_status(RemoteAction::Down),
+            ControlStatus::Unavailable(RemoteActionRejection::UnverifiedAction)
+        );
     }
 
     #[test]

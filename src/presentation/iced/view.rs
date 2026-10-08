@@ -1,10 +1,12 @@
 use super::message::Message;
 use super::view_model::{
-    feed_is_at_bottom, ControlState, PrimaryView, ViewModel, MAX_MESSAGE_PANE_HEIGHT,
-    MIN_MESSAGE_PANE_HEIGHT,
+    feed_is_at_bottom, remote_action_label, ControlState, PrimaryView, ViewModel,
+    MAX_MESSAGE_PANE_HEIGHT, MIN_MESSAGE_PANE_HEIGHT,
 };
 use crate::{RemoteAction, SendRemoteAction};
-use ::iced::widget::{button, column, container, row, scrollable, slider, text, tooltip, Space};
+use ::iced::widget::{
+    button, column, container, row, scrollable, slider, text, text_input, tooltip, Space,
+};
 use ::iced::{Alignment, Element, Length};
 
 pub const MESSAGE_FEED_ID: &str = "global-message-feed";
@@ -36,7 +38,7 @@ pub fn main_window(view_model: &ViewModel) -> Element<'_, Message> {
         .height(Length::Fill),
         split_bar(view_model.message_pane_height()),
         global_messages(view_model),
-        activity_view(),
+        activity_view(view_model),
     ]
     .spacing(8)
     .padding(16)
@@ -96,7 +98,7 @@ fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'sta
 fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
     let availability = control_state
         .disabled_reason
-        .unwrap_or("Remote controls are ready. Actions are not sent by this shell.");
+        .unwrap_or("Verified remote actions are available.");
     let selected_device = control_state
         .selected_device
         .as_ref()
@@ -136,7 +138,7 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
             text("Volume"),
             tooltip(
                 button("Volume Slider"),
-                availability,
+                "Exact volume is unavailable in this milestone.",
                 tooltip::Position::Top
             ),
             row![
@@ -145,6 +147,7 @@ fn remote_view(control_state: &ControlState) -> Element<'static, Message> {
                 remote_button("Volume Up", RemoteAction::VolumeUp, control_state)
             ]
             .spacing(8),
+            text("Keyboard: arrows, Return, Esc, Home, M, + (Shift+=), and - (Remote View only)."),
         ]
         .spacing(10)
         .align_x(Alignment::Center),
@@ -162,7 +165,7 @@ fn remote_button(
     if let Some(device) = control_state
         .selected_device
         .as_ref()
-        .filter(|_| control_state.remote_actions_enabled())
+        .filter(|_| control_state.action_disabled_reason(action).is_none())
     {
         button
             .on_press(Message::AttemptRemoteAction(SendRemoteAction::new(
@@ -175,7 +178,7 @@ fn remote_button(
         tooltip(
             button,
             control_state
-                .disabled_reason
+                .action_disabled_reason(action)
                 .unwrap_or("Remote actions are unavailable."),
             tooltip::Position::Top,
         )
@@ -254,43 +257,129 @@ fn global_messages(view_model: &ViewModel) -> Element<'_, Message> {
     .into()
 }
 
-fn activity_view() -> Element<'static, Message> {
-    container(column![text("Activity View"), text("No activity yet.")].spacing(4))
+fn activity_view(view_model: &ViewModel) -> Element<'static, Message> {
+    let mut entries = column![text("Activity View")].spacing(4);
+    if view_model.activity().is_empty() {
+        entries = entries.push(text("No activity yet."));
+    } else {
+        for item in view_model.activity().iter().rev().take(3) {
+            entries = entries.push(text(item.clone()));
+        }
+    }
+    container(entries)
         .padding(10)
         .width(Length::Fill)
         .height(80)
         .into()
 }
 
-pub fn settings_window() -> Element<'static, Message> {
-    let severity = super::view_model::MessageSeverity::Warning;
+pub struct SettingsView<'a> {
+    pub address: &'a str,
+    pub candidates: &'a [crate::application::target::TvHost],
+    pub saved_devices: &'a [crate::application::device::SavedDevice],
+    pub fingerprint: Option<String>,
+    pub observed_name: Option<String>,
+    pub observed_model: Option<String>,
+    pub status: &'a str,
+    pub selected_label: Option<&'a str>,
+    pub pairing_pending: bool,
+    pub forget_pending: bool,
+    pub verified_actions: [(RemoteAction, bool); 10],
+}
+
+pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
+    let SettingsView {
+        address,
+        candidates,
+        saved_devices,
+        fingerprint,
+        observed_name,
+        observed_model,
+        status,
+        selected_label,
+        pairing_pending,
+        forget_pending,
+        verified_actions,
+    } = options;
     let sidebar = column![text("Settings").size(18), text("TV (current view)")]
         .padding(16)
         .spacing(10)
         .width(150);
 
-    let main_pane = container(
-        column![
+    let selected = selected_label.unwrap_or("None");
+    let has_fingerprint = fingerprint.is_some();
+    let fingerprint_text = fingerprint
+        .map(|value| format!("Observed certificate SHA-256: {value}"))
+        .unwrap_or_else(|| "No certificate observed yet.".to_owned());
+    let mut main_content = column![
             text("TV settings").size(26),
-            Space::new().height(Length::Fill),
-            text("No TVs are listed in this presentation shell."),
-            text(format!(
-                "{}: discovery is not available in this shell.",
-                severity.label()
-            )),
-            tooltip(
-                button("Discover TVs"),
-                "Discovery is not available in this shell.",
-                tooltip::Position::Bottom,
+            text(format!("Selected TV: {selected}")),
+            text("Enter TV Address"),
+            button("Discover TVs").on_press(Message::DiscoverTv),
+            text_input("Local IP address or host name", address)
+                .on_input(Message::TvAddressChanged)
+                .on_submit(Message::ProbeTv),
+            button("Probe Secure TV (8002)").on_press(Message::ProbeTv),
+            text(fingerprint_text).size(12),
+            text(format!("Observed name: {}", observed_name.unwrap_or_else(|| "Unavailable".to_owned()))),
+            text(format!("Observed model: {}", observed_model.unwrap_or_else(|| "Unavailable".to_owned()))),
+            text("Confirm the address and certificate on the intended TV. Approve the matching TV prompt."),
+            button("Confirm TV and Pair").on_press_maybe(
+                if has_fingerprint && !pairing_pending && !forget_pending { Some(Message::ConfirmAndPair) } else { None }
             ),
-            Space::new().height(Length::Fill),
+            button("Re-pair Selected TV").on_press_maybe(
+                if has_fingerprint && selected_label.is_some() && !pairing_pending && !forget_pending { Some(Message::ConfirmAndRepair) } else { None }
+            ),
+            row![
+                button("Retry Connection").on_press_maybe(
+                    selected_label.filter(|_| !forget_pending).map(|_| Message::ConnectSelected)
+                ),
+                button("Forget Selected TV").on_press_maybe(
+                    selected_label.filter(|_| !forget_pending).map(|_| Message::ForgetSelected)
+                )
+            ].spacing(8),
+            text(status),
+            text("After testing each key on the physical TV, mark only the keys that worked."),
         ]
-        .align_x(Alignment::Center)
-        .spacing(12),
-    )
-    .padding(20)
-    .width(Length::Fill)
-    .height(Length::Fill);
+        .spacing(12);
+    if selected_label.is_some() {
+        for (action, verified) in verified_actions {
+            main_content = main_content.push(
+                button(text(format!(
+                    "{}: {}",
+                    remote_action_label(action),
+                    if verified {
+                        "Verified ✓"
+                    } else {
+                        "Unverified"
+                    }
+                )))
+                .on_press(Message::SetActionVerified {
+                    action,
+                    verified: !verified,
+                }),
+            );
+        }
+    }
+    for candidate in candidates {
+        main_content = main_content.push(
+            button(text(format!(
+                "Unconfirmed candidate: {} — Probe",
+                candidate.as_str()
+            )))
+            .on_press(Message::UseCandidate(candidate.clone())),
+        );
+    }
+    for device in saved_devices {
+        main_content = main_content.push(
+            button(text(format!("Select saved TV: {}", device.label)))
+                .on_press_maybe((!forget_pending).then_some(Message::SelectSaved(device.id))),
+        );
+    }
+    let main_pane = container(scrollable(main_content))
+        .padding(20)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     row![sidebar, main_pane].height(Length::Fill).into()
 }

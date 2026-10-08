@@ -4,6 +4,48 @@ Status: Active
 
 ## Entries
 
+- 2026-10-08 — Owner verified signed-bundle Pairing, saved-token reconnect,
+  Retry Connection after a temporary network interruption, and all ten
+  on-screen keys on KU75UA8090FXKR (T-NKLAAKUC-2310.0, BT-S; TV on Ethernet).
+  Activity reported all ten key requests as written to the TV connection, with
+  the TV response unverified by the app; the owner reports the keys visibly
+  working. M, Home, directional, minus, Enter, and Escape keyboard shortcuts
+  worked; Shift+= initially failed in a bundle of uncertain age, then worked
+  after the physical Equal-key fix and signed-bundle rebuild.
+  The owner deferred discovery, local-network permission recovery, and
+  failure/switching human checks without a date. No latency measurement is
+  planned, so the under-150-ms target remains unverified. Added deterministic
+  rollback, uncertain-write, certificate-pin, shortcut dispatch, and
+  written-result tests. Discovery receive errors now surface as recoverable
+  warnings. Aligned Activity and Settings control labels with the canonical UX
+  terms. The owner approved the existing keyboard mappings as the canonical
+  pairs in `docs/ux-term.md` and requires an interview before any new shortcut.
+  Added and ran `make bundle` using the saved local signing identity;
+  the signed bundle passed verification. Cargo formatting, Clippy, and tests
+  pass (81 tests). M10 remains open.
+- 2026-10-08 — P1-M10 implementation in progress. The owner's Terminal probe
+  reached secure port 8002, negotiated TLS 1.3, received HTTP 200 metadata,
+  and obtained a token after physical-TV approval; the diagnostic discarded
+  that token. Added bounded codec, pinned TLS session, Keychain token storage,
+  device-scoped trust and preference stores, SSDP discovery with manual entry,
+  pairing/reconnect/forget flows, a bounded serial command dispatcher, and
+  per-action UI availability. A locally self-signed bundle builds and passes
+  `codesign --verify` without changing Keychain trust settings. Actual button
+  responses, saved-token reconnect, local-network permission behavior, and
+  native UI acceptance are still under test. No address, fingerprint, or real
+  token was recorded in the repository.
+- 2026-10-08 — Owner reviewed P1-M10 and chose secure port 8002 only, with no
+  plaintext fallback; deferred Power Toggle to the wake/power milestone; and
+  chose local signing because no Apple-issued identity is available. The owner
+  can approve Pairing and observe button results during hardware acceptance.
+  The Mac and TV share a LAN, and the address can be supplied privately if
+  discovery fails. Tightened the plan's trust, session, dispatch, and macOS
+  permission gates.
+- 2026-10-08 — Planned P1-M10 as the first live-TV milestone and reopened
+  Phase 1 for its end-to-end acceptance. The plan covers target-hardware
+  decisions, trusted TV setup, Pairing, a live session, bounded dispatch,
+  honest UI outcomes, and native validation on the already-on target TV.
+  No live connection or protocol behavior is implemented by this plan.
 - 2026-10-08 — Completed P1-M9 and Phase 1. Remote requests now retain the
   selection generation and are checked by a pure policy for selection, target,
   generation, pairing, and connection readiness. The policy’s eligible result

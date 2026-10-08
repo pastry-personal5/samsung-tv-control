@@ -1,8 +1,8 @@
-# Phase 1: Foundation and Architecture
+# Phase 1: Foundation and First Live Control
 
-Status: Done
-Goal: Establish the validated product, technical, and UX direction required to
-begin building the Rust macOS Samsung TV remote.
+Status: Active
+Goal: Establish the product and architecture foundations, then connect the
+Rust macOS remote to its first live TV.
 
 ## Exit criteria
 
@@ -14,6 +14,8 @@ begin building the Rust macOS Samsung TV remote.
   documented and ready to guide implementation.
 - The presentation shell consumes typed application state and command contracts
   without importing Samsung protocol details or performing device I/O.
+- The first live path connects to an already-on TV through confirmed trust and
+  Pairing, sends supported remote actions, and reports honest request outcomes.
 
 ## Milestones
 
@@ -104,3 +106,19 @@ Plan: [overview](milestone-09-overview.md),
 [architecture](milestone-09-architecture.md)
 Notes: A pure policy now returns typed rejections or an explicitly non-sending
 eligible result; Iced availability derives from the same state.
+
+### P1-M10: First Live TV Connection and Control
+
+Status: In Progress
+Goal: Connect the app to the owner's already powered-on TV and deliver the
+first trusted, observable end-to-end remote-control path.
+Plan: [overview](milestone-10-overview.md),
+[architecture](milestone-10-architecture.md)
+Notes: Includes hardware protocol decisions, TV setup and Pairing, trusted
+persistence, live session, bounded dispatch, UI outcomes, and native acceptance.
+The owner chose secure port 8002 only, deferred Power Toggle and wake, and
+chose local signing for the test bundle. Initial secure endpoint and consent
+probes passed. The owner verified signed-bundle Pairing, saved-token reconnect,
+and all ten current keys. Discovery, native permission recovery, and
+failure/switching checks have deferred human verification without a date.
+The latency target remains unmeasured. Source/app/text features follow later.

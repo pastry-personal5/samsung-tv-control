@@ -28,6 +28,18 @@ fn device_id_display() {
 }
 
 #[test]
+fn generated_device_ids_roundtrip_as_local_record_keys() {
+    let first = DeviceId::generate();
+    let second = DeviceId::generate();
+    assert_ne!(first, second);
+    assert_eq!(DeviceId::parse_record_key(&first.to_string()), Some(first));
+    assert_eq!(
+        DeviceId::parse_record_key(&second.to_string()),
+        Some(second)
+    );
+}
+
+#[test]
 fn device_display_preserves_its_typed_id() {
     let id = DeviceId::new(100);
     let display = DeviceDisplay::new(id, "Living Room TV");

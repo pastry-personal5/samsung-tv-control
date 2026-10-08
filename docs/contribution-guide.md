@@ -13,8 +13,14 @@ with:
 cargo run
 ```
 
-The current package launches the Iced GUI shell. It shows the Remote View but
-does not connect to a TV.
+The current package launches the Iced GUI. Settings can probe and pair a TV
+over secure port 8002; the hardware acceptance run for P1-M10 is in progress.
+For local-network permission testing, build the signed app bundle with
+`make bundle`. It uses `SAMSUNG_TV_CODESIGN_IDENTITY` if set, or the identity
+saved in `target/local-signing-identity.txt` by
+`zsh scripts/create_local_signing_identity.sh`. The bundle is written to
+`target/bundle/Samsung TV Remote.app`. Launch that bundle for native review;
+`cargo run` does not prove native bundle permission behavior.
 
 Run individual tests while iterating with `cargo test <name>`. Do not require a
 physical TV or a local network for automated tests; use deterministic fakes for
