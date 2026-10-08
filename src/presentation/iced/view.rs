@@ -312,36 +312,54 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         .map(|value| format!("Observed certificate SHA-256: {value}"))
         .unwrap_or_else(|| "No certificate observed yet.".to_owned());
     let mut main_content = column![
-            text("TV settings").size(26),
-            text(format!("Selected TV: {selected}")),
-            text("Enter TV Address"),
-            button("Discover TVs").on_press(Message::DiscoverTv),
+        text("TV settings").size(26),
+        text(format!("Selected TV: {selected}")),
+        text("Enter TV Address"),
+        button("Discover TVs").on_press(Message::DiscoverTv),
+    ]
+    .spacing(12);
+    for candidate in candidates {
+        main_content = main_content.push(
+            button(text(format!(
+                "Unconfirmed candidate: {} — Probe",
+                candidate.as_str()
+            )))
+            .on_press(Message::UseCandidate(candidate.clone())),
+        );
+    }
+    main_content = main_content
+            .push(
             text_input("Local IP address or host name", address)
                 .on_input(Message::TvAddressChanged)
                 .on_submit(Message::ProbeTv),
-            button("Probe Secure TV (8002)").on_press(Message::ProbeTv),
-            text(fingerprint_text).size(12),
-            text(format!("Observed name: {}", observed_name.unwrap_or_else(|| "Unavailable".to_owned()))),
-            text(format!("Observed model: {}", observed_model.unwrap_or_else(|| "Unavailable".to_owned()))),
-            text("Confirm the address and certificate on the intended TV. Approve the matching TV prompt."),
-            button("Confirm TV and Pair").on_press_maybe(
+            )
+            .push(button("Probe Secure TV (8002)").on_press(Message::ProbeTv))
+            .push(text(fingerprint_text).size(12))
+            .push(text(format!(
+                "Observed name: {}",
+                observed_name.unwrap_or_else(|| "Unavailable".to_owned())
+            )))
+            .push(text(format!(
+                "Observed model: {}",
+                observed_model.unwrap_or_else(|| "Unavailable".to_owned())
+            )))
+            .push(text("Confirm the address and certificate on the intended TV. Approve the matching TV prompt."))
+            .push(button("Confirm TV and Pair").on_press_maybe(
                 if has_fingerprint && !pairing_pending && !forget_pending { Some(Message::ConfirmAndPair) } else { None }
-            ),
-            button("Re-pair Selected TV").on_press_maybe(
+            ))
+            .push(button("Re-pair Selected TV").on_press_maybe(
                 if has_fingerprint && selected_label.is_some() && !pairing_pending && !forget_pending { Some(Message::ConfirmAndRepair) } else { None }
-            ),
-            row![
+            ))
+            .push(row![
                 button("Retry Connection").on_press_maybe(
                     selected_label.filter(|_| !forget_pending).map(|_| Message::ConnectSelected)
                 ),
                 button("Forget Selected TV").on_press_maybe(
                     selected_label.filter(|_| !forget_pending).map(|_| Message::ForgetSelected)
                 )
-            ].spacing(8),
-            text(status),
-            text("After testing each key on the physical TV, mark only the keys that worked."),
-        ]
-        .spacing(12);
+            ].spacing(8))
+            .push(text(status))
+            .push(text("After testing each key on the physical TV, mark only the keys that worked."));
     if selected_label.is_some() {
         for (action, verified) in verified_actions {
             main_content = main_content.push(
@@ -360,15 +378,6 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                 }),
             );
         }
-    }
-    for candidate in candidates {
-        main_content = main_content.push(
-            button(text(format!(
-                "Unconfirmed candidate: {} — Probe",
-                candidate.as_str()
-            )))
-            .on_press(Message::UseCandidate(candidate.clone())),
-        );
     }
     for device in saved_devices {
         main_content = main_content.push(

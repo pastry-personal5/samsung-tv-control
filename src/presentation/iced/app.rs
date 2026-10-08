@@ -1328,6 +1328,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn discovered_candidates_survive_closing_and_reopening_settings() {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::DiscoverTv);
+        let candidate = TvHost::parse("192.168.1.2").unwrap();
+        let _ = app.update(Message::DiscoveryFinished {
+            attempt: app.discovery_attempt,
+            result: Ok(vec![candidate.clone()]),
+        });
+        let _ = app.update(Message::OpenSettings);
+        let settings_id = app.settings_window.expect("settings window");
+        let _ = app.update(Message::WindowClosed(settings_id));
+        let _ = app.update(Message::OpenSettings);
+
+        assert_eq!(app.candidates, vec![candidate]);
+        assert!(app.settings_window.is_some());
+    }
+
     #[tokio::test]
     async fn delayed_disconnect_from_old_session_cannot_fail_new_session() {
         let (mut app, _) = App::new();
