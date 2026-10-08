@@ -10,10 +10,13 @@ The repository has a native Iced app with Remote, Sources, Apps, Text Input,
 and Settings views. P1-M10 secure TV setup and control are in progress: SSDP
 discovery and manual address entry, certificate confirmation, Keychain-backed
 pairing, saved-TV reconnect, and bounded remote dispatch are implemented.
-The owner verified Pairing, saved-token reconnect, and all ten current key
-actions from a signed app bundle. Discovery, local-network permission recovery,
-and failure/switching paths still need human verification. The latency target
-has not been measured.
+The owner verified empty-install setup, Pairing, saved-token reconnect,
+discovery, and all ten current key actions from a signed app bundle.
+Discovery's empty/denied/timeout manual-entry fallback, local-network
+permission recovery, and failure/switching paths still need human verification.
+Those checks, the remaining native-bundle review, and optional latency
+measurement are deferred without a revisit date. The latency target has not
+been measured.
 
 ## Technology and architecture
 

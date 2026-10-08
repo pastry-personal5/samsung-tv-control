@@ -13,10 +13,11 @@ This is one large end-to-end milestone with internal gates. It starts from the
 P1-M9 policy-only shell; no current lifecycle value proves a live connection.
 The first hardware target is the recorded KU75UA8090FXKR. The owner's
 Terminal diagnostic confirmed the secure endpoint and consent flow. The owner
-reports Pairing and all ten required keys working from the signed bundle.
-The owner also reports saved-token reconnect and Retry Connection working.
-Discovery, native bundle permission recovery, and failure/switching paths have
-deferred human verification and remain open acceptance items.
+reports successful empty-install setup, Pairing, all ten required keys, and
+successful discovery from the signed bundle. The owner also reports
+saved-token reconnect and Retry Connection working. Native bundle permission
+recovery and failure/switching paths have deferred human verification and
+remain open acceptance items.
 The owner tested on-screen controls and keyboard shortcuts, including Enter,
 Escape, and Shift+= for Volume Up. Activity reported all ten key requests as
 written to the TV connection, with the TV response unverified by the app.
@@ -123,22 +124,28 @@ can provide the TV address privately during implementation if discovery fails.
 
 ## Completion checklist
 
-The owner deferred human verification of discovery, local-network permission
-recovery, and failure/switching paths. These boxes remain open. Saved-token
-reconnect and Retry Connection were reported successful, but the combined
-recovery item below also requires the deferred re-pair and forget checks.
-The deferral has no revisit date. Enter and Escape keyboard shortcuts work,
-and Activity reported all ten key requests as written. The under-150-ms
-latency target remains unverified.
+The owner verified empty-install setup and that discovery returns a candidate
+through the selected mechanism. The following remaining acceptance work is
+deferred without a revisit date: empty/denied/timed-out discovery fallback to
+manual address entry; local-network permission alert, denial recovery, and
+retry from the signed bundle; re-pair, forget, failed Connection, and switching
+TVs during pending work; the remaining native-bundle review; and latency
+measurement. Saved-token reconnect and Retry Connection were reported
+successful, but the combined recovery item below also requires the deferred
+re-pair and forget checks. Enter and Escape keyboard shortcuts work, and
+Activity reported all ten key requests as written. The under-150-ms latency
+target remains unverified.
 
-- [ ] From an empty install, the user can find or manually enter the powered-on
+- [x] From an empty install, the user can find or manually enter the powered-on
   TV, confirm it, complete Pairing, and see a live Connection.
 - [ ] Secure trust is device-scoped; a changed certificate, revoked token, or
   changed host cannot silently reuse a credential. The app never connects to
   port 8001 or downgrades to plaintext.
-- [ ] Discovery reports candidates when the tested TV advertises through the
-  selected mechanism. Empty, denied, or timed-out discovery remains
-  actionable through manual address entry without claiming a TV was found.
+- [x] Discovery reports a candidate when the tested TV advertises through the
+  selected mechanism. The candidate remains untrusted until TV Identity
+  Confirmation and Pairing.
+- [ ] Empty, denied, or timed-out discovery remains actionable through manual
+  address entry without claiming a TV was found.
 - [ ] The selected saved TV reconnects after app restart without another
   prompt when the TV still accepts its token. Re-pair, forget, and failed
   Connection paths provide clear recovery.
@@ -165,7 +172,8 @@ latency target remains unverified.
 - [x] `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`,
   and `cargo test` pass (91 tests).
 - [ ] Native app review records the macOS local-network prompt/recovery and a
-  sanitized hardware matrix. Only then mark M10 Done.
+  sanitized hardware matrix. The matrix is recorded; prompt/recovery review is
+  deferred without a revisit date. Only then mark M10 Done.
 
 ## Live acceptance script
 

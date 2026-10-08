@@ -122,3 +122,11 @@ probes passed. The owner verified signed-bundle Pairing, saved-token reconnect,
 and all ten current keys. Discovery, native permission recovery, and
 failure/switching checks have deferred human verification without a date.
 The latency target remains unmeasured. Source/app/text features follow later.
+
+### P1-M11: Clean Architecture Refactoring
+
+Status: Planned
+Goal: Improve the established live-control implementation's names, boundaries,
+and test structure without changing behavior or persisted data.
+Plan: [overview](milestone-11-overview.md),
+[architecture](milestone-11-architecture.md)

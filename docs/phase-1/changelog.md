@@ -4,6 +4,32 @@ Status: Active
 
 ## Entries
 
+- 2026-10-09 — Owner deferred the remaining P1-M10 human acceptance work
+  without a revisit date: empty/denied/timed-out discovery fallback to manual
+  address entry; signed-bundle local-network permission alert, denial recovery,
+  and retry; re-pair, forget, failed Connection, and switching TVs during
+  pending work; the remaining native-bundle review; and optional latency
+  measurement. Empty-install setup and the sanitized hardware matrix remain
+  recorded as completed evidence.
+
+- 2026-10-09 — Owner reported successful human verification of the empty-install
+  setup journey from the signed bundle: find or manually enter the powered-on
+  TV, confirm it, complete Pairing, and reach a live Connection. Marked that
+  M10 acceptance item complete; it does not verify the deferred recovery paths.
+
+- 2026-10-09 — Owner reported a successful human discovery test from the
+  signed bundle: the selected mechanism found a Samsung-like candidate. Marked
+  the candidate-discovery acceptance item complete. Empty/denied/timed-out
+  fallback, local-network permission recovery, and failure/switching checks
+  remain open; discovery is not physical identity confirmation.
+
+- 2026-10-09 — Planned P1-M11 as a behavior-preserving Clean Architecture
+  refactoring milestone after P1-M10. It applies the canonical UX vocabulary,
+  including the semantic `Select` to `Enter` rename, clarifies application
+  ports and infrastructure adapters, and preserves storage, Keychain, queue,
+  TLS, and live-control behavior. It does not replace M10's deferred hardware
+  acceptance.
+
 - 2026-10-08 — Owner verified signed-bundle Pairing, saved-token reconnect,
   Retry Connection after a temporary network interruption, and all ten
   on-screen keys on KU75UA8090FXKR (T-NKLAAKUC-2310.0, BT-S; TV on Ethernet).
