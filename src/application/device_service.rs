@@ -545,4 +545,100 @@ mod tests {
             Some("token")
         );
     }
+
+    #[test]
+    fn failed_trust_cleanup_reports_partial_pairing_without_selecting_candidate() {
+        let fake = Fake::default();
+        fake.0.borrow_mut().fail_trust_save = true;
+        fake.0.borrow_mut().fail_secret_delete = true;
+        assert_eq!(
+            commit(&service(&fake)).unwrap_err(),
+            SetupError::PartialCleanup
+        );
+        let memory = fake.0.borrow();
+        assert!(memory.devices.is_empty());
+        assert_eq!(memory.selected, None);
+        assert_eq!(memory.secrets.len(), 1);
+    }
+
+    #[test]
+    fn reconnect_requires_trust_and_token_before_returning_material() {
+        let fake = Fake::default();
+        let service = service(&fake);
+        let device = commit(&service).unwrap();
+        fake.0.borrow_mut().trust.remove(&device.id);
+        assert!(matches!(
+            service.reconnect_material(device.id),
+            Err(ReconnectError::MissingTrust)
+        ));
+        assert_eq!(fake.0.borrow().secret_loads, 0);
+
+        fake.0.borrow_mut().trust.insert(
+            device.id,
+            TrustRecord {
+                host: device.host.clone(),
+                pin: CertificatePin::from_der(b"certificate"),
+            },
+        );
+        fake.0.borrow_mut().secrets.remove(&device.id);
+        assert!(matches!(
+            service.reconnect_material(device.id),
+            Err(ReconnectError::PairingRequired)
+        ));
+    }
+
+    #[test]
+    fn failed_repair_preferences_write_restores_old_credentials_and_device() {
+        let fake = Fake::default();
+        let service = service(&fake);
+        let device = commit(&service).unwrap();
+        fake.0.borrow_mut().fail_device_save = true;
+        let result = service.repair(
+            device.id,
+            "Replacement",
+            TvHost::parse("other.local").unwrap(),
+            CertificatePin::from_der(b"replacement certificate"),
+            PairingToken::from_stored("replacement-token".to_owned()).unwrap(),
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            SetupError::Preferences(RepositoryError::Unavailable)
+        );
+        let memory = fake.0.borrow();
+        assert_eq!(memory.devices[0].host, device.host);
+        assert_eq!(
+            memory.secrets.get(&device.id).map(String::as_str),
+            Some("token")
+        );
+        assert_eq!(memory.trust.get(&device.id).unwrap().host, device.host);
+    }
+
+    #[test]
+    fn repair_same_identity_preserves_verified_actions() {
+        let fake = Fake::default();
+        let service = service(&fake);
+        let device = commit(&service).unwrap();
+        service
+            .set_action_verified(device.id, RemoteAction::Up, true)
+            .unwrap();
+        let repaired = service
+            .repair(
+                device.id,
+                "Renamed TV",
+                device.host.clone(),
+                CertificatePin::from_der(b"certificate"),
+                PairingToken::from_stored("rotated-token".to_owned()).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(repaired.verified_actions, vec![RemoteAction::Up]);
+        assert_eq!(repaired.label, "Renamed TV");
+        assert_eq!(
+            service
+                .reconnect_material(device.id)
+                .unwrap()
+                .token
+                .as_str(),
+            "rotated-token"
+        );
+    }
 }

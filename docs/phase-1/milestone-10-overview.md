@@ -163,7 +163,7 @@ latency target remains unverified.
   Back, Home, Mute, Volume Up, and Volume Down on the target. Power Toggle is
   deferred to the wake/power milestone.
 - [x] `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`,
-  and `cargo test` pass (81 tests).
+  and `cargo test` pass (91 tests).
 - [ ] Native app review records the macOS local-network prompt/recovery and a
   sanitized hardware matrix. Only then mark M10 Done.
 

@@ -60,7 +60,11 @@ fn candidate_from_response(response: &[u8], peer: SocketAddr) -> Option<TvHost> 
     }
     let response = std::str::from_utf8(response).ok()?;
     let mut lines = response.split("\r\n");
-    if !lines.next()?.starts_with("HTTP/1.1 200") {
+    let status = lines.next()?;
+    if !status
+        .strip_prefix("HTTP/1.1 200")
+        .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with(' '))
+    {
         return None;
     }
     let samsung = lines.any(|line| {
@@ -105,5 +109,41 @@ mod tests {
             classify_error(std::io::Error::from(std::io::ErrorKind::NetworkUnreachable)),
             DiscoveryError::Unavailable
         );
+    }
+
+    #[test]
+    fn ignores_malformed_non_samsung_and_oversized_advertisements() {
+        let peer = SocketAddr::from(([10, 1, 2, 3], 1900));
+        for response in [
+            b"HTTP/1.1 2000 OK\r\nSERVER: Samsung\r\n\r\n".as_slice(),
+            b"HTTP/1.1 404 Not Found\r\nSERVER: Samsung\r\n\r\n",
+            b"HTTP/1.1 200 OK\nSERVER: Samsung\n\n",
+            b"HTTP/1.1 200 OK\r\nLOCATION: http://samsung.example/\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nSERVER: Other\r\n\r\n",
+            b"\xff\xfe",
+        ] {
+            assert!(candidate_from_response(response, peer).is_none());
+        }
+        let mut oversized = b"HTTP/1.1 200 OK\r\nSERVER: Samsung\r\n".to_vec();
+        oversized.resize(2049, b'x');
+        assert!(candidate_from_response(&oversized, peer).is_none());
+    }
+
+    #[test]
+    fn accepts_case_insensitive_samsung_header_without_trusting_location() {
+        let peer = SocketAddr::from(([172, 16, 2, 4], 1900));
+        let response = b"HTTP/1.1 200 OK\r\nst: urn:samsung.com:device:RemoteControlReceiver:1\r\nLOCATION: http://public.example/\r\n\r\n";
+        assert_eq!(
+            candidate_from_response(response, peer),
+            TvHost::parse("172.16.2.4").ok()
+        );
+    }
+
+    #[test]
+    fn rejects_nonlocal_and_loopback_response_sources() {
+        let response = b"HTTP/1.1 200 OK\r\nSERVER: Samsung\r\n\r\n";
+        for address in [[127, 0, 0, 1], [8, 8, 8, 8], [224, 0, 0, 1]] {
+            assert!(candidate_from_response(response, SocketAddr::from((address, 1900))).is_none());
+        }
     }
 }

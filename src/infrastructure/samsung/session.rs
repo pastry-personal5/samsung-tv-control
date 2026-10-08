@@ -501,6 +501,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn authorization_ignores_unrelated_frames_and_rejects_closed_streams() {
+        let connected =
+            Message::Text(r#"{"event":"ms.channel.connect","data":{"token":"test-token"}}"#.into());
+        let result = authorization(
+            [
+                Message::Ping(Vec::new().into()),
+                Message::Text(r#"{"event":"ms.channel.ready"}"#.into()),
+                connected,
+            ],
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result.as_ref().map(PairingToken::as_str),
+            Some("test-token")
+        );
+        assert_eq!(
+            authorization([Message::Close(None)], false).await.err(),
+            Some(SessionError::Offline)
+        );
+        assert_eq!(
+            authorization([], false).await.err(),
+            Some(SessionError::Offline)
+        );
+    }
+
+    #[tokio::test]
     async fn silent_fake_tv_times_out_without_accepting_pairing() {
         let mut frames = stream::pending::<Result<Message, WebSocketError>>();
         assert!(timeout(
@@ -569,6 +597,21 @@ mod tests {
         assert_eq!(peer.read(&mut bytes).await.unwrap(), 0);
     }
 
+    #[tokio::test]
+    async fn matching_certificate_allows_secure_websocket_upgrade() {
+        let host = TvHost::parse("tv.local").unwrap();
+        let pin = CertificatePin::from_der(b"trusted certificate");
+        let token = PairingToken::from_stored("synthetic-token".to_owned()).unwrap();
+        let (client, server) = tokio::io::duplex(4096);
+        let server_task =
+            tokio::spawn(async move { tokio_tungstenite::accept_async(server).await.unwrap() });
+        let socket = upgrade_with_pin(client, &host, pin, pin, Some(&token))
+            .await
+            .unwrap();
+        drop(socket);
+        server_task.await.unwrap();
+    }
+
     #[test]
     fn token_url_is_secure_and_escapes_untrusted_token_characters() {
         let host = TvHost::parse("tv.local").unwrap();
@@ -612,5 +655,24 @@ mod tests {
             parse_metadata(b"HTTP/1.1 302 Found\r\n\r\n{}".to_vec()),
             (None, None)
         );
+    }
+
+    #[test]
+    fn metadata_rejects_non_success_malformed_and_unsafe_fields() {
+        for response in [
+            b"HTTP/1.1 401 Unauthorized\r\n\r\n{}".as_slice(),
+            b"HTTP/1.1 200 OK\r\n\r\n{".as_slice(),
+            b"HTTP/1.1 200 OK\n\n{}".as_slice(),
+        ] {
+            assert_eq!(parse_metadata(response.to_vec()), (None, None));
+        }
+        let body = serde_json::json!({
+            "device": {
+                "name": "TV\nInjected",
+                "modelName": "x".repeat(81)
+            }
+        });
+        let response = format!("HTTP/1.1 200 OK\r\n\r\n{body}");
+        assert_eq!(parse_metadata(response.into_bytes()), (None, None));
     }
 }
