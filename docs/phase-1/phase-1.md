@@ -136,3 +136,40 @@ Notes: The application coordinator now owns the live-control workflow, and
 `main.rs` composes its adapters. New saved action values use `Enter`; old
 `Select` records are not read or migrated. All Cargo gates pass (97 tests).
 M10's deferred hardware checks remain deferred.
+
+### P1-M12: Dark GUI, Focused Navigation, and Simplified TV Settings
+
+Status: Done
+Goal: Apply the approved always-dark graphite interface, focused icon-led
+navigation, a split-and-scroll Global Messages Pane, larger minimum window
+sizes, and retire per-key manual verification because the standard actions are
+verified.
+Plan: [overview](milestone-12-overview.md),
+[architecture](milestone-12-architecture.md)
+Notes: Delivered the always-dark Iced presentation, approved minimum window
+sizes, streamlined Sidebar and Remote View chrome, draggable Global Messages
+split bar, scrollable semantic message rows, and removal of Activity View and
+manual per-key verification. Current and legacy `verified_actions` data is
+ignored on load and removed on a later save. Cargo format, Clippy, and test
+gates pass.
+
+### P1-M13: Wake-on-LAN and Toggle Power
+
+Status: Implemented; live-TV Wake verification deferred
+Goal: Add selected-MAC Wake-on-LAN in Power View. Keep Power Toggle in Remote
+View: send `KEY_POWER` for a live paired session, or open Power View and try a
+short trusted connection before Wake when disconnected.
+Plan: [overview](milestone-13-overview.md),
+[architecture](milestone-13-architecture.md)
+Notes: Power View, per-TV Wake configuration, one local-route WoL packet,
+bounded trusted reconnect, and connected-only `KEY_POWER` are implemented.
+The signed native bundle was inspected for Sidebar order and Power View.
+Physical Wake, permission recovery, and latency remain unverified.
+
+### P1-M14: Remote and Settings GUI Refinement
+
+Status: Planned
+Goal: Refine the dark Remote and Settings windows into grouped control and
+setup cards without adding new remote capabilities.
+Plan: [overview](milestone-14-overview.md),
+[architecture](milestone-14-architecture.md)

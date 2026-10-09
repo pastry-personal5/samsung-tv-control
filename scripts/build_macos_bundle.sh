@@ -32,7 +32,7 @@ cat > "$contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Connect to a TV on your local network for pairing and remote control.</string>
+    <string>Connect to a TV on your local network for pairing, waking, and remote control.</string>
 </dict>
 </plist>
 PLIST

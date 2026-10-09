@@ -1,19 +1,21 @@
 use super::ui_message::{Message, Shortcut};
 use super::view;
-use super::view_model::{rejection_message, remote_action_label, ViewModel};
+use super::view_model::{rejection_message, ViewModel};
 use crate::application::device_repository::RepositoryError;
 use crate::application::remote_dispatcher::{
     Admission, DispatchRejection, NotSentReason, TerminalOutcome,
 };
 use crate::application::tv_control_coordinator::{
     AppServices, ConnectCompletion, ConnectFlowError, PairCompletion, PairFlowError,
-    PairStartError, SessionImpact, SessionPackage, TvControlCoordinator,
+    PairStartError, PowerProbeCompletion, PowerStart, SessionImpact, SessionPackage,
+    TvControlCoordinator, WakeFailure, WakeStage,
 };
 use crate::application::tv_discovery::DiscoveryError;
 use crate::application::tv_session::{TvSessionError, TvSessionEvent};
+use crate::application::wake::{WakeConfiguration, WakeInterface};
 use crate::application::SendRemoteAction;
 use ::iced::keyboard::{self, key, Key, Modifiers};
-use ::iced::{event, window, Element, Event, Size, Subscription, Task};
+use ::iced::{event, window, Element, Event, Size, Subscription, Task, Theme};
 
 pub struct App {
     main_window: Option<window::Id>,
@@ -22,6 +24,10 @@ pub struct App {
     coordinator: TvControlCoordinator,
     tv_address: String,
     settings_status: String,
+    wake_wired: String,
+    wake_wifi: String,
+    wake_active: Option<WakeInterface>,
+    wake_tick: bool,
 }
 
 impl App {
@@ -41,6 +47,10 @@ impl App {
                 coordinator,
                 tv_address: String::new(),
                 settings_status: "Enter a local TV address to begin secure setup.".to_owned(),
+                wake_wired: String::new(),
+                wake_wifi: String::new(),
+                wake_active: None,
+                wake_tick: false,
             },
             Task::done(Message::OpenMainWindow),
         )
@@ -59,6 +69,7 @@ impl App {
         match restore.selected {
             Ok(Some(device)) => {
                 app.tv_address = device.host.as_str().to_owned();
+                app.load_wake_draft(&device);
                 app.view_model
                     .update_control_state(&app.coordinator.app_state);
                 app.settings_status = "Restoring the selected TV securely.".to_owned();
@@ -125,16 +136,6 @@ impl App {
                     self.update(Message::Navigate(route))
                 }
                 Shortcut::OpenSettings => self.update(Message::OpenSettings),
-                Shortcut::GrowMessages if self.main_window == Some(window) => {
-                    self.update(Message::ResizeMessages(
-                        self.view_model.message_pane_height().saturating_add(16),
-                    ))
-                }
-                Shortcut::ShrinkMessages if self.main_window == Some(window) => {
-                    self.update(Message::ResizeMessages(
-                        self.view_model.message_pane_height().saturating_sub(16),
-                    ))
-                }
                 Shortcut::Remote(action)
                     if self.main_window == Some(window)
                         && self.view_model.primary_view()
@@ -147,15 +148,68 @@ impl App {
                             "No TV selected. Open Settings to choose a TV.",
                         );
                     };
-                    self.update(Message::AttemptRemoteAction(SendRemoteAction::new(
+                    let request = SendRemoteAction::new(
                         target,
                         self.coordinator.app_state.selection_generation(),
                         action,
-                    )))
+                    );
+                    if action == crate::RemoteAction::PowerToggle {
+                        self.update(Message::PowerToggle(request))
+                    } else {
+                        self.update(Message::AttemptRemoteAction(request))
+                    }
                 }
                 _ => Task::none(),
             },
             Message::AttemptRemoteAction(request) => self.handle_remote_action(request),
+            Message::PowerToggle(request) => self.power_toggle(request),
+            Message::Wake => self.begin_wake(),
+            Message::CancelWake => {
+                self.coordinator.cancel_wake();
+                self.publish(
+                    super::view_model::MessageSeverity::Information,
+                    super::view_model::MessageSource::MainWindow,
+                    "Wake cancelled. A packet already sent cannot be recalled.",
+                )
+            }
+            Message::WakeTick => {
+                self.wake_tick = !self.wake_tick;
+                Task::none()
+            }
+            Message::PowerProbeFinished {
+                attempt,
+                generation,
+                result,
+            } => self.finish_power_probe(attempt, generation, result),
+            Message::WakeSent {
+                attempt,
+                generation,
+                device,
+                result,
+            } => self.finish_wake_send(attempt, generation, device, result),
+            Message::WakeReconnected {
+                attempt,
+                generation,
+                device,
+                result,
+            } => self.finish_wake_reconnect(attempt, generation, device, result),
+            Message::WakeWiredChanged(value) => {
+                self.wake_wired = value;
+                Task::none()
+            }
+            Message::WakeWifiChanged(value) => {
+                self.wake_wifi = value;
+                Task::none()
+            }
+            Message::WakeInterfaceSelected(value) => {
+                self.wake_active = Some(value);
+                Task::none()
+            }
+            Message::WakeInterfaceCleared => {
+                self.wake_active = None;
+                Task::none()
+            }
+            Message::SaveWakeConfiguration => self.save_wake_configuration(),
             Message::TvAddressChanged(value) => {
                 self.tv_address = value;
                 self.coordinator.address_changed();
@@ -273,6 +327,11 @@ impl App {
                     "TV removal had partial credential cleanup. Check Keychain for this app's pairing item."
                         .to_owned()
                 };
+                if result.record_removed {
+                    self.wake_wired.clear();
+                    self.wake_wifi.clear();
+                    self.wake_active = None;
+                }
                 self.publish(
                     if result.complete() {
                         super::view_model::MessageSeverity::Information
@@ -298,28 +357,8 @@ impl App {
                 self.view_model
                     .update_control_state(&self.coordinator.app_state);
                 self.tv_address = device.host.as_str().to_owned();
+                self.load_wake_draft(&device);
                 Task::done(Message::ConnectSelected)
-            }
-            Message::SetActionVerified { action, verified } => {
-                match self.coordinator.set_action_verified(action, verified) {
-                    Ok(()) => {
-                        self.view_model
-                            .update_control_state(&self.coordinator.app_state);
-                        self.publish(
-                            super::view_model::MessageSeverity::Information,
-                            super::view_model::MessageSource::SettingsWindow,
-                            format!(
-                                "{} support updated from your TV observation.",
-                                remote_action_label(action)
-                            ),
-                        )
-                    }
-                    Err(_) => self.publish(
-                        super::view_model::MessageSeverity::Warning,
-                        super::view_model::MessageSource::SettingsWindow,
-                        "Could not save verified key support. Retry in Settings.",
-                    ),
-                }
             }
             Message::SessionEvent {
                 generation,
@@ -395,6 +434,20 @@ impl App {
                 generation,
                 connection,
             } => {
+                if let Some(device) = self
+                    .coordinator
+                    .app_state
+                    .selected_device()
+                    .and_then(|id| {
+                        self.coordinator
+                            .saved_devices
+                            .iter()
+                            .find(|device| device.id == id)
+                    })
+                    .cloned()
+                {
+                    self.load_wake_draft(&device);
+                }
                 let _ = self.sync_terminal_results();
                 self.view_model
                     .update_control_state(&self.coordinator.app_state);
@@ -514,15 +567,232 @@ impl App {
                 super::view_model::MessageSource::MainWindow,
                 "Remote queue is busy. Try again after an outcome appears.",
             ),
-            Admission::Queued(id) => {
+            Admission::Queued(_) => {
                 let queued = self.publish(
                     super::view_model::MessageSeverity::Information,
                     super::view_model::MessageSource::MainWindow,
-                    format!("Request #{} queued.", id.value()),
+                    "Remote request queued.",
                 );
                 Task::batch([queued, self.pump_dispatch()])
             }
         }
+    }
+
+    fn power_toggle(&mut self, request: SendRemoteAction) -> Task<Message> {
+        let plan =
+            match self.coordinator.begin_power_toggle(&request) {
+                PowerStart::Toggle => return self.handle_remote_action(request),
+                PowerStart::Probe(plan) => plan,
+                PowerStart::MissingConfiguration => return self.publish(
+                    super::view_model::MessageSeverity::Warning,
+                    super::view_model::MessageSource::MainWindow,
+                    "Set an active Wake MAC in TV Settings before using Power while disconnected.",
+                ),
+                PowerStart::Busy | PowerStart::Stale => return Task::none(),
+                PowerStart::Unavailable => {
+                    return self.publish(
+                        super::view_model::MessageSeverity::Warning,
+                        super::view_model::MessageSource::MainWindow,
+                        "Power service is unavailable. Check the selected TV in Settings.",
+                    )
+                }
+            };
+        let attempt = plan.attempt;
+        let generation = plan.generation;
+        self.view_model
+            .select_view(super::view_model::PrimaryView::Power);
+        self.view_model
+            .update_control_state(&self.coordinator.app_state);
+        Task::perform(plan.run(), move |result| Message::PowerProbeFinished {
+            attempt,
+            generation,
+            result,
+        })
+    }
+
+    fn finish_power_probe(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        result: Result<SessionPackage, ConnectFlowError>,
+    ) -> Task<Message> {
+        match self
+            .coordinator
+            .finish_power_probe(attempt, generation, result)
+        {
+            PowerProbeCompletion::Ignored => Task::none(),
+            PowerProbeCompletion::Connected { connection } => {
+                self.view_model
+                    .update_control_state(&self.coordinator.app_state);
+                Task::batch([self.install_session(generation, connection),
+                    self.publish(super::view_model::MessageSeverity::Information, super::view_model::MessageSource::MainWindow,
+                        "TV was already reachable. Paired remote channel is ready; no wake packet was sent.")])
+            }
+            PowerProbeCompletion::Wake(plan) => {
+                self.view_model
+                    .update_control_state(&self.coordinator.app_state);
+                self.run_wake_plan(plan)
+            }
+            PowerProbeCompletion::Failed(_) => {
+                self.view_model
+                    .update_control_state(&self.coordinator.app_state);
+                self.publish(super::view_model::MessageSeverity::Warning, super::view_model::MessageSource::MainWindow,
+                    "Power connection check needs attention. Review pairing and connection in TV Settings; no wake packet was sent.")
+            }
+        }
+    }
+
+    fn begin_wake(&mut self) -> Task<Message> {
+        let Some(plan) = self.coordinator.begin_wake() else {
+            return self.publish(
+                super::view_model::MessageSeverity::Warning,
+                super::view_model::MessageSource::MainWindow,
+                "Wake cannot start. Check the selected TV and Wake configuration in Settings.",
+            );
+        };
+        self.run_wake_plan(plan)
+    }
+
+    fn run_wake_plan(
+        &mut self,
+        plan: crate::application::tv_control_coordinator::WakePlan,
+    ) -> Task<Message> {
+        let attempt = plan.attempt;
+        let generation = plan.generation;
+        let device = plan.device;
+        self.view_model
+            .select_view(super::view_model::PrimaryView::Power);
+        Task::perform(plan.run(), move |result| Message::WakeSent {
+            attempt,
+            generation,
+            device,
+            result,
+        })
+    }
+
+    fn finish_wake_send(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        device: crate::DeviceId,
+        result: Result<(), crate::application::wake_transport::WakeSendError>,
+    ) -> Task<Message> {
+        let current = self.coordinator.wake_attempt == attempt
+            && self.coordinator.app_state.selection_generation() == generation
+            && self.coordinator.app_state.selected_device() == Some(device);
+        let Some(plan) = self
+            .coordinator
+            .finish_wake_send(attempt, generation, device, result)
+        else {
+            if current
+                && matches!(
+                    self.coordinator.wake_stage,
+                    WakeStage::Failed(WakeFailure::Local(_))
+                )
+            {
+                return self.publish(super::view_model::MessageSeverity::Warning, super::view_model::MessageSource::MainWindow,
+                    "Magic packet could not be sent on this local network. Check permission and route in TV Settings.");
+            }
+            return Task::none();
+        };
+        let message = self.publish(
+            super::view_model::MessageSeverity::Information,
+            super::view_model::MessageSource::MainWindow,
+            "Magic packet sent once. Delivery and physical TV state are unconfirmed.",
+        );
+        Task::batch([
+            message,
+            Task::perform(plan.run(), move |result| Message::WakeReconnected {
+                attempt,
+                generation,
+                device,
+                result,
+            }),
+        ])
+    }
+
+    fn finish_wake_reconnect(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        device: crate::DeviceId,
+        result: Result<SessionPackage, WakeFailure>,
+    ) -> Task<Message> {
+        match self
+            .coordinator
+            .finish_wake_reconnect(attempt, generation, device, result)
+        {
+            ConnectCompletion::Ignored => Task::none(),
+            ConnectCompletion::Connected { connection } => {
+                self.view_model
+                    .update_control_state(&self.coordinator.app_state);
+                Task::batch([
+                    self.install_session(generation, connection),
+                    self.publish(
+                        super::view_model::MessageSeverity::Information,
+                        super::view_model::MessageSource::MainWindow,
+                        "Paired remote channel is ready. Physical panel state is not measured.",
+                    ),
+                ])
+            }
+            ConnectCompletion::Failed(_) => {
+                self.view_model
+                    .update_control_state(&self.coordinator.app_state);
+                self.publish(super::view_model::MessageSeverity::Warning,
+                    super::view_model::MessageSource::MainWindow,
+                    "Wake did not establish the paired remote channel. Check Power View for the result.")
+            }
+        }
+    }
+
+    fn load_wake_draft(&mut self, device: &crate::application::device_repository::SavedDevice) {
+        self.wake_wired = device
+            .wake
+            .wired
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        self.wake_wifi = device
+            .wake
+            .wifi
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        self.wake_active = device.wake.active;
+    }
+
+    fn save_wake_configuration(&mut self) -> Task<Message> {
+        let parse = |value: &str| {
+            if value.is_empty() {
+                Ok(None)
+            } else {
+                value.parse().map(Some)
+            }
+        };
+        let (Ok(wired), Ok(wifi)) = (parse(&self.wake_wired), parse(&self.wake_wifi)) else {
+            self.settings_status =
+                "Enter each MAC as six hexadecimal octets, for example 02:11:22:33:44:55."
+                    .to_owned();
+            return Task::none();
+        };
+        let wake = WakeConfiguration {
+            wired,
+            wifi,
+            active: self.wake_active,
+        };
+        if wake.active.is_some() && wake.active_mac().is_none() {
+            self.settings_status = "Enter a MAC for the selected Wake interface.".to_owned();
+            return Task::none();
+        }
+        let Ok(device) = self.coordinator.save_wake_configuration(wake) else {
+            self.settings_status = "Could not save Wake configuration.".to_owned();
+            return Task::none();
+        };
+        self.load_wake_draft(&device);
+        self.settings_status = "Wake configuration saved.".to_owned();
+        self.publish(
+            super::view_model::MessageSeverity::Information,
+            super::view_model::MessageSource::SettingsWindow,
+            "Wake configuration saved for the selected TV.",
+        )
     }
 
     fn pump_dispatch(&mut self) -> Task<Message> {
@@ -548,12 +818,7 @@ impl App {
                     "not sent; reconnect the TV."
                 }
             };
-            let text = format!("Request #{} {outcome}", result.id.value());
-            self.view_model.add_activity(format!(
-                "#{}, {}: {outcome}",
-                result.id.value(),
-                remote_action_label(result.request.action())
-            ));
+            let text = format!("Remote request {outcome}");
             follow |= self.view_model.messages_mut().append(
                 if matches!(result.outcome, TerminalOutcome::Written) {
                     super::view_model::MessageSeverity::Information
@@ -636,15 +901,17 @@ impl App {
                     .map(|device| device.label()),
                 pairing_pending: self.coordinator.pair_pending,
                 forget_pending: self.coordinator.forget_pending.is_some(),
-                verified_actions: crate::RemoteAction::LIVE_ACTIONS.map(|action| {
-                    (
-                        action,
-                        self.coordinator.app_state.is_action_verified(action),
-                    )
-                }),
+                wake_wired: &self.wake_wired,
+                wake_wifi: &self.wake_wifi,
+                wake_active: self.wake_active,
             })
         } else {
-            view::main_window(&self.view_model)
+            view::main_window(
+                &self.view_model,
+                self.coordinator.wake_stage,
+                self.coordinator.selected_wake_configured(),
+                self.wake_tick,
+            )
         }
     }
 
@@ -657,10 +924,20 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
+        let mut subscriptions = vec![
             window::close_events().map(Message::WindowClosed),
             event::listen_with(shortcut_event),
-        ])
+        ];
+        if matches!(
+            self.coordinator.wake_stage,
+            WakeStage::CheckingConnection | WakeStage::PacketSending | WakeStage::Reconnecting
+        ) {
+            subscriptions.push(
+                ::iced::time::every(std::time::Duration::from_millis(500))
+                    .map(|_| Message::WakeTick),
+            );
+        }
+        Subscription::batch(subscriptions)
     }
 
     fn publish(
@@ -737,11 +1014,7 @@ fn shortcut_for(key: &Key, modifiers: Modifiers) -> Option<Shortcut> {
     }
 
     if modifiers.shift() {
-        return match key {
-            Key::Named(key::Named::ArrowUp) => Some(Shortcut::GrowMessages),
-            Key::Named(key::Named::ArrowDown) => Some(Shortcut::ShrinkMessages),
-            _ => None,
-        };
+        return None;
     }
 
     match key.as_ref() {
@@ -826,14 +1099,19 @@ fn connect_error_message(error: ConnectFlowError) -> &'static str {
 pub fn run(services: AppServices) -> ::iced::Result {
     ::iced::daemon(move || App::boot(services.clone()), App::update, App::view)
         .title(App::title)
+        .theme(dark_theme)
         .subscription(App::subscription)
         .run()
 }
 
+fn dark_theme(_: &App, _: window::Id) -> Theme {
+    Theme::Dark
+}
+
 fn main_window_settings() -> window::Settings {
     window::Settings {
-        size: Size::new(980.0, 760.0),
-        min_size: Some(Size::new(700.0, 560.0)),
+        size: Size::new(1100.0, 760.0),
+        min_size: Some(Size::new(1100.0, 760.0)),
         position: window::Position::Centered,
         ..window::Settings::default()
     }
@@ -841,8 +1119,8 @@ fn main_window_settings() -> window::Settings {
 
 fn settings_window_settings() -> window::Settings {
     window::Settings {
-        size: Size::new(680.0, 480.0),
-        min_size: Some(Size::new(520.0, 360.0)),
+        size: Size::new(1000.0, 660.0),
+        min_size: Some(Size::new(1000.0, 660.0)),
         position: window::Position::Centered,
         ..window::Settings::default()
     }
@@ -860,24 +1138,38 @@ mod tests {
     use crate::application::tv_setup_service::{
         ForgetResult, ReconnectError, ReconnectMaterial, SetupError, TvSetupPort,
     };
+    use crate::application::wake_transport::{WakeFuture, WakePermit, WakeTransport};
     use crate::application::{ConnectionState, PairingState};
     use std::sync::{Arc, Mutex};
 
     struct FakeSetup {
         device: Mutex<SavedDevice>,
+        list_failure: bool,
     }
 
     impl FakeSetup {
         fn new(device: SavedDevice) -> Self {
             Self {
                 device: Mutex::new(device),
+                list_failure: false,
+            }
+        }
+
+        fn with_list_failure(device: SavedDevice) -> Self {
+            Self {
+                device: Mutex::new(device),
+                list_failure: true,
             }
         }
     }
 
     impl TvSetupPort for FakeSetup {
         fn saved_devices(&self) -> Result<Vec<SavedDevice>, RepositoryError> {
-            Ok(vec![self.device.lock().unwrap().clone()])
+            if self.list_failure {
+                Err(RepositoryError::Unavailable)
+            } else {
+                Ok(vec![self.device.lock().unwrap().clone()])
+            }
         }
 
         fn selected_device(&self) -> Result<Option<SavedDevice>, RepositoryError> {
@@ -927,21 +1219,17 @@ mod tests {
             Err(SecretError::Unavailable)
         }
 
-        fn set_action_verified(
+        fn save_wake_configuration(
             &self,
             id: crate::DeviceId,
-            action: crate::RemoteAction,
-            verified: bool,
-        ) -> Result<Vec<crate::RemoteAction>, RepositoryError> {
+            wake: crate::application::wake::WakeConfiguration,
+        ) -> Result<SavedDevice, RepositoryError> {
             let mut device = self.device.lock().unwrap();
             if device.id != id {
                 return Err(RepositoryError::Corrupt);
             }
-            device.verified_actions.retain(|current| *current != action);
-            if verified {
-                device.verified_actions.push(action);
-            }
-            Ok(device.verified_actions.clone())
+            device.wake = wake;
+            Ok(device.clone())
         }
 
         fn forget(&self, _: crate::DeviceId) -> ForgetResult {
@@ -954,6 +1242,35 @@ mod tests {
     }
 
     struct TestControl;
+
+    struct FakeWake;
+
+    impl WakeTransport for FakeWake {
+        fn send_once(&self, _: TvHost, _: crate::domain::MacAddress, _: WakePermit) -> WakeFuture {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    struct RecordingWake {
+        sends: Arc<Mutex<Vec<(String, crate::domain::MacAddress)>>>,
+    }
+
+    impl WakeTransport for RecordingWake {
+        fn send_once(
+            &self,
+            host: TvHost,
+            mac: crate::domain::MacAddress,
+            permit: WakePermit,
+        ) -> WakeFuture {
+            let sends = self.sends.clone();
+            Box::pin(async move {
+                permit.send_if_current(|| {
+                    sends.lock().unwrap().push((host.as_str().to_owned(), mac));
+                    Ok(())
+                })
+            })
+        }
+    }
 
     impl TvSessionControl for TestControl {
         fn try_click(
@@ -972,8 +1289,186 @@ mod tests {
             id,
             label: "TV".to_owned(),
             host: TvHost::parse("tv.local").unwrap(),
-            verified_actions: vec![crate::RemoteAction::Up],
+            wake: crate::application::wake::WakeConfiguration::default(),
         }
+    }
+
+    #[test]
+    fn selected_tv_remains_wake_configured_when_list_load_fails() {
+        let mut device = saved_device(crate::DeviceId::new(16));
+        device.wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: None,
+            active: Some(WakeInterface::Wired),
+        };
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(Arc::new(FakeSetup::with_list_failure(device.clone())));
+
+        let summary = app.coordinator.restore().unwrap();
+
+        assert!(summary.list_error);
+        assert_eq!(app.coordinator.saved_devices, vec![device]);
+        assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[test]
+    fn saving_wake_configuration_adds_missing_cached_selected_tv() {
+        let device = saved_device(crate::DeviceId::new(17));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(Arc::new(FakeSetup::new(device.clone())));
+        app.coordinator.app_state.select_device(device.display());
+        let wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: None,
+            active: Some(WakeInterface::Wired),
+        };
+
+        app.coordinator.save_wake_configuration(wake).unwrap();
+
+        assert_eq!(app.coordinator.saved_devices.len(), 1);
+        assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[tokio::test]
+    async fn manual_wake_uses_only_the_active_mac_once() {
+        let mut device = saved_device(crate::DeviceId::new(19));
+        device.wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: Some("04:11:22:33:44:55".parse().unwrap()),
+            active: Some(WakeInterface::WiFi),
+        };
+        let sends = Arc::new(Mutex::new(Vec::new()));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(Arc::new(FakeSetup::new(device.clone())));
+        app.coordinator.gateway = Some(Arc::new(
+            crate::infrastructure::samsung::session::SamsungGateway,
+        ));
+        app.coordinator.wake_transport = Some(Arc::new(RecordingWake {
+            sends: sends.clone(),
+        }));
+        app.coordinator.saved_devices.push(device.clone());
+        app.coordinator.app_state.select_device(device.display());
+
+        let plan = app.coordinator.begin_wake().unwrap();
+        assert!(plan.run().await.is_ok());
+
+        assert_eq!(
+            sends.lock().unwrap().as_slice(),
+            &[("tv.local".to_owned(), "04:11:22:33:44:55".parse().unwrap())]
+        );
+    }
+
+    #[test]
+    fn disconnected_power_opens_power_and_starts_one_short_connection_check() {
+        let mut device = saved_device(crate::DeviceId::new(12));
+        device.wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: None,
+            active: Some(WakeInterface::Wired),
+        };
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(Arc::new(FakeSetup::new(device.clone())));
+        app.coordinator.gateway = Some(Arc::new(
+            crate::infrastructure::samsung::session::SamsungGateway,
+        ));
+        app.coordinator.saved_devices.push(device.clone());
+        app.coordinator.app_state.select_device(device.display());
+        let generation = app.coordinator.app_state.selection_generation();
+        let request =
+            SendRemoteAction::new(device.id, generation, crate::RemoteAction::PowerToggle);
+        let _ = app.update(Message::PowerToggle(request.clone()));
+        assert_eq!(
+            app.view_model.primary_view(),
+            super::super::view_model::PrimaryView::Power
+        );
+        assert_eq!(app.coordinator.wake_stage, WakeStage::CheckingConnection);
+        let first_attempt = app.coordinator.connect_attempt;
+        let _ = app.update(Message::PowerToggle(request));
+        assert_eq!(app.coordinator.connect_attempt, first_attempt);
+    }
+
+    #[test]
+    fn connected_power_keeps_remote_view_and_queues_key_power() {
+        let device = saved_device(crate::DeviceId::new(13));
+        let (mut app, _) = App::new();
+        app.coordinator.app_state.select_device(device.display());
+        let generation = app.coordinator.app_state.selection_generation();
+        app.coordinator
+            .app_state
+            .set_pairing_state(generation, PairingState::Ready);
+        app.coordinator
+            .app_state
+            .set_connection_state(generation, ConnectionState::Ready);
+        app.coordinator.active_runtime = Some(ActiveRuntime {
+            generation,
+            session_id: 1,
+            control: Box::new(TestControl),
+        });
+        let _ = app.update(Message::PowerToggle(SendRemoteAction::new(
+            device.id,
+            generation,
+            crate::RemoteAction::PowerToggle,
+        )));
+        assert_eq!(
+            app.view_model.primary_view(),
+            super::super::view_model::PrimaryView::Remote
+        );
+        assert_eq!(app.coordinator.dispatcher.pending_ids().count(), 1);
+    }
+
+    #[test]
+    fn power_probe_wakes_only_after_an_unreachable_result() {
+        let mut device = saved_device(crate::DeviceId::new(14));
+        device.wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: None,
+            active: Some(WakeInterface::Wired),
+        };
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(Arc::new(FakeSetup::new(device.clone())));
+        app.coordinator.gateway = Some(Arc::new(
+            crate::infrastructure::samsung::session::SamsungGateway,
+        ));
+        app.coordinator.wake_transport = Some(Arc::new(FakeWake));
+        app.coordinator.saved_devices.push(device.clone());
+        app.coordinator.app_state.select_device(device.display());
+        let generation = app.coordinator.app_state.selection_generation();
+        let request =
+            SendRemoteAction::new(device.id, generation, crate::RemoteAction::PowerToggle);
+        let _ = app.update(Message::PowerToggle(request));
+        let attempt = app.coordinator.connect_attempt;
+        let _ = app.update(Message::PowerProbeFinished {
+            attempt,
+            generation,
+            result: Err(ConnectFlowError::Session(TvSessionError::Offline)),
+        });
+        assert_eq!(app.coordinator.wake_stage, WakeStage::PacketSending);
+        assert_eq!(
+            app.view_model.control_state().connection.label,
+            "Connection needs attention"
+        );
+        assert_eq!(
+            app.view_model.primary_view(),
+            super::super::view_model::PrimaryView::Power
+        );
+
+        let wake_attempt = app.coordinator.wake_attempt;
+        let _ = app.update(Message::WakeSent {
+            attempt: wake_attempt,
+            generation,
+            device: device.id,
+            result: Ok(()),
+        });
+        let _ = app.update(Message::WakeReconnected {
+            attempt: wake_attempt,
+            generation,
+            device: device.id,
+            result: Err(WakeFailure::Timeout),
+        });
+        assert_eq!(
+            app.view_model.control_state().connection.label,
+            "Connection needs attention"
+        );
     }
 
     #[test]
@@ -990,10 +1485,6 @@ mod tests {
         app.coordinator
             .app_state
             .set_connection_state(previous, ConnectionState::Ready);
-        app.coordinator
-            .app_state
-            .set_verified_actions(previous, [crate::RemoteAction::Up]);
-
         let _ = app.update(Message::SelectSaved(device.id));
 
         assert_eq!(
@@ -1012,28 +1503,6 @@ mod tests {
                 crate::application::RemoteActionRejection::PairingRequired
             )
         );
-    }
-
-    #[test]
-    fn verified_key_changes_refresh_the_saved_device_snapshot() {
-        let device = saved_device(crate::DeviceId::new(8));
-        let (mut app, _) = App::new();
-        app.coordinator.service = Some(Arc::new(FakeSetup::new(device.clone())));
-        app.coordinator.saved_devices.push(device.clone());
-        app.coordinator.app_state.select_device(device.display());
-
-        let _ = app.update(Message::SetActionVerified {
-            action: crate::RemoteAction::Down,
-            verified: true,
-        });
-
-        assert!(app
-            .coordinator
-            .app_state
-            .is_action_verified(crate::RemoteAction::Down));
-        assert!(app.coordinator.saved_devices[0]
-            .verified_actions
-            .contains(&crate::RemoteAction::Down));
     }
 
     #[test]
@@ -1148,10 +1617,6 @@ mod tests {
         app.coordinator
             .app_state
             .set_connection_state(generation, ConnectionState::Ready);
-        app.coordinator
-            .app_state
-            .set_verified_actions(generation, [crate::RemoteAction::Up]);
-
         let _ = app.update(Message::Shortcut {
             window,
             shortcut: Shortcut::Remote(crate::RemoteAction::Up),
@@ -1162,11 +1627,12 @@ mod tests {
             crate::RemoteAction::Up,
         )));
 
-        let activity = app.view_model.activity();
-        assert_eq!(activity.len(), 2);
-        assert!(activity
+        assert!(app
+            .view_model
+            .messages()
+            .entries()
             .iter()
-            .all(|entry| { entry.contains("Up: not sent; reconnect the TV") }));
+            .any(|entry| entry.text.contains("not sent; reconnect the TV")));
     }
 
     #[tokio::test]
@@ -1181,9 +1647,6 @@ mod tests {
         app.coordinator
             .app_state
             .set_connection_state(generation, ConnectionState::Ready);
-        app.coordinator
-            .app_state
-            .set_verified_actions(generation, [crate::RemoteAction::Up]);
         let request = SendRemoteAction::new(device.id, generation, crate::RemoteAction::Up);
         let Admission::Queued(id) = app
             .coordinator
@@ -1212,9 +1675,9 @@ mod tests {
             event: TvSessionEvent::Written(id),
         });
 
-        let activity = app.view_model.activity().back().unwrap();
-        assert!(activity.contains("written to the TV connection"));
-        assert!(activity.contains("TV response is unverified"));
+        let message = app.view_model.messages().entries().back().unwrap();
+        assert!(message.text.contains("written to the TV connection"));
+        assert!(message.text.contains("TV response is unverified"));
         assert_eq!(app.coordinator.dispatcher.pending_ids().count(), 0);
     }
 
@@ -1267,7 +1730,7 @@ mod tests {
     }
 
     #[test]
-    fn keyboard_shortcuts_require_command_and_match_routes_and_resize() {
+    fn keyboard_shortcuts_require_command_and_match_routes() {
         let command = Modifiers::COMMAND;
         assert_eq!(
             shortcut_for(&Key::Character("4".into()), command),
@@ -1281,12 +1744,26 @@ mod tests {
         );
         assert_eq!(
             shortcut_for(&Key::Named(key::Named::ArrowUp), command | Modifiers::SHIFT),
-            Some(Shortcut::GrowMessages)
+            None
         );
         assert_eq!(
             shortcut_for(&Key::Character("1".into()), Modifiers::NONE),
             None
         );
+    }
+
+    #[test]
+    fn windows_use_the_approved_dark_layout_dimensions() {
+        assert_eq!(
+            main_window_settings().min_size,
+            Some(Size::new(1100.0, 760.0))
+        );
+        assert_eq!(
+            settings_window_settings().min_size,
+            Some(Size::new(1000.0, 660.0))
+        );
+        let (app, _) = App::new();
+        assert_eq!(dark_theme(&app, window::Id::unique()), Theme::Dark);
     }
 
     #[test]
@@ -1435,10 +1912,6 @@ mod tests {
             .coordinator
             .app_state
             .set_connection_state(generation, crate::application::ConnectionState::Ready);
-        let _ = app
-            .coordinator
-            .app_state
-            .set_verified_actions(generation, [crate::RemoteAction::Up]);
         app.view_model
             .update_control_state(&app.coordinator.app_state);
 

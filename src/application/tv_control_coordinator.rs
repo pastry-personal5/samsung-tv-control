@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -16,14 +17,16 @@ use super::tv_session::{
     ProbeObservation, TvConnection, TvGateway, TvSessionControl, TvSessionError, TvSessionEvent,
 };
 use super::tv_setup_service::{ForgetResult, ReconnectError, SetupError, TvSetupPort};
+use super::wake::WakeConfiguration;
+use super::wake_transport::{WakePermit, WakeSendError, WakeTransport};
 use crate::domain::DeviceId;
-use crate::domain::RemoteAction;
 
 #[derive(Clone)]
 pub struct AppServices {
     pub setup: Option<Arc<dyn TvSetupPort>>,
     pub discovery: Option<Arc<dyn TvDiscovery>>,
     pub gateway: Option<Arc<dyn TvGateway>>,
+    pub wake: Option<Arc<dyn WakeTransport>>,
 }
 
 pub struct RestoreSummary {
@@ -36,11 +39,13 @@ impl AppServices {
         setup: Option<Arc<dyn TvSetupPort>>,
         discovery: Arc<dyn TvDiscovery>,
         gateway: Arc<dyn TvGateway>,
+        wake: Arc<dyn WakeTransport>,
     ) -> Self {
         Self {
             setup,
             discovery: Some(discovery),
             gateway: Some(gateway),
+            wake: Some(wake),
         }
     }
 
@@ -50,6 +55,7 @@ impl AppServices {
             setup: None,
             discovery: None,
             gateway: None,
+            wake: None,
         }
     }
 }
@@ -159,19 +165,147 @@ pub struct ConnectPlan {
     pair_epoch: u64,
     epoch: Arc<AtomicU64>,
     guard: Arc<Mutex<()>>,
+    timeout: Option<std::time::Duration>,
 }
 
 impl ConnectPlan {
     pub async fn run(self) -> Result<SessionPackage, ConnectFlowError> {
-        TvControlCoordinator::connect_flow(
+        let flow = TvControlCoordinator::connect_flow(
             self.service,
             self.gateway,
             self.id,
             self.pair_epoch,
             self.epoch,
             self.guard,
-        )
-        .await
+        );
+        if let Some(timeout) = self.timeout {
+            tokio::time::timeout(timeout, flow)
+                .await
+                .map_err(|_| ConnectFlowError::Session(TvSessionError::Timeout))?
+        } else {
+            flow.await
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeStage {
+    ConfigurationRequired,
+    Idle,
+    CheckingConnection,
+    PacketSending,
+    Reconnecting,
+    Connected,
+    Ready,
+    Failed(WakeFailure),
+    FailedAfterSend(WakeFailure),
+    Cancelled,
+    CancelledDuringSend,
+    CancelledAfterSend,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeFailure {
+    Local(WakeSendError),
+    Timeout,
+    PairingRequired,
+    Connection,
+}
+
+pub struct WakePlan {
+    pub attempt: u64,
+    pub generation: u64,
+    pub device: DeviceId,
+    host: TvHost,
+    mac: crate::domain::MacAddress,
+    transport: Arc<dyn WakeTransport>,
+    permit: WakePermit,
+}
+
+impl WakePlan {
+    pub async fn run(self) -> Result<(), WakeSendError> {
+        if !self.permit.is_current() {
+            return Err(WakeSendError::Cancelled);
+        }
+        self.transport
+            .send_once(self.host, self.mac, self.permit)
+            .await
+    }
+}
+
+pub struct WakeReconnectPlan {
+    pub attempt: u64,
+    pub generation: u64,
+    pub device: DeviceId,
+    service: Arc<dyn TvSetupPort>,
+    gateway: Arc<dyn TvGateway>,
+    pair_epoch: u64,
+    epoch: Arc<AtomicU64>,
+    wake_epoch: Arc<AtomicU64>,
+    guard: Arc<Mutex<()>>,
+}
+
+impl WakeReconnectPlan {
+    pub async fn run(self) -> Result<SessionPackage, WakeFailure> {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if self.wake_epoch.load(Ordering::SeqCst) != self.attempt {
+                return Err(WakeFailure::Connection);
+            }
+            let flow = TvControlCoordinator::connect_flow(
+                self.service.clone(),
+                self.gateway.clone(),
+                self.device,
+                self.pair_epoch,
+                self.epoch.clone(),
+                self.guard.clone(),
+            );
+            match await_wake_work(self.attempt, &self.wake_epoch, deadline, flow).await? {
+                Ok(package) => return Ok(package),
+                Err(ConnectFlowError::Session(
+                    TvSessionError::Offline
+                    | TvSessionError::Timeout
+                    | TvSessionError::RemoteChannel,
+                )) => {}
+                Err(error) => return Err(wake_connection_failure(error)),
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(WakeFailure::Timeout);
+            }
+            await_wake_work(
+                self.attempt,
+                &self.wake_epoch,
+                deadline,
+                tokio::time::sleep_until(std::cmp::min(
+                    deadline,
+                    tokio::time::Instant::now() + std::time::Duration::from_millis(500),
+                )),
+            )
+            .await?;
+        }
+    }
+}
+
+async fn await_wake_work<T>(
+    attempt: u64,
+    epoch: &AtomicU64,
+    deadline: tokio::time::Instant,
+    work: impl Future<Output = T>,
+) -> Result<T, WakeFailure> {
+    let mut cancellation_check = tokio::time::interval(std::time::Duration::from_millis(100));
+    cancellation_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    tokio::pin!(work);
+    loop {
+        tokio::select! {
+            biased;
+            _ = cancellation_check.tick() => {
+                if epoch.load(Ordering::SeqCst) != attempt {
+                    return Err(WakeFailure::Connection);
+                }
+            }
+            _ = tokio::time::sleep_until(deadline) => return Err(WakeFailure::Timeout),
+            result = &mut work => return Ok(result),
+        }
     }
 }
 
@@ -206,6 +340,40 @@ pub enum ConnectCompletion {
     Failed(ConnectFlowError),
 }
 
+pub enum PowerStart {
+    Toggle,
+    Probe(ConnectPlan),
+    MissingConfiguration,
+    Busy,
+    Stale,
+    Unavailable,
+}
+
+pub enum PowerProbeCompletion {
+    Ignored,
+    Connected { connection: Box<dyn TvConnection> },
+    Wake(WakePlan),
+    Failed(WakeFailure),
+}
+
+fn wake_connection_failure(error: ConnectFlowError) -> WakeFailure {
+    match error {
+        ConnectFlowError::Session(
+            TvSessionError::TokenRejected
+            | TvSessionError::PairingDenied
+            | TvSessionError::PairingTokenMissing,
+        )
+        | ConnectFlowError::Reconnect(
+            ReconnectError::PairingRequired
+            | ReconnectError::MissingTrust
+            | ReconnectError::HostChanged
+            | ReconnectError::Credential(super::credential_store::SecretError::InvalidToken)
+            | ReconnectError::Trust(super::certificate_trust::TrustError::Corrupt),
+        ) => WakeFailure::PairingRequired,
+        _ => WakeFailure::Connection,
+    }
+}
+
 impl ForgetPlan {
     pub async fn run(self) -> ForgetResult {
         TvControlCoordinator::forget_flow(self.service, self.id, self.guard).await
@@ -217,6 +385,11 @@ pub struct TvControlCoordinator {
     pub service: Option<Arc<dyn TvSetupPort>>,
     pub discovery: Option<Arc<dyn TvDiscovery>>,
     pub gateway: Option<Arc<dyn TvGateway>>,
+    pub wake_transport: Option<Arc<dyn WakeTransport>>,
+    pub wake_stage: WakeStage,
+    pub wake_attempt: u64,
+    pub wake_epoch: Arc<AtomicU64>,
+    pub wake_send_guard: Arc<Mutex<()>>,
     pub saved_devices: Vec<SavedDevice>,
     pub dispatcher: RemoteDispatcher,
     pub active_runtime: Option<ActiveRuntime>,
@@ -240,6 +413,11 @@ impl TvControlCoordinator {
             service: services.setup,
             discovery: services.discovery,
             gateway: services.gateway,
+            wake_transport: services.wake,
+            wake_stage: WakeStage::ConfigurationRequired,
+            wake_attempt: 0,
+            wake_epoch: Arc::new(AtomicU64::new(0)),
+            wake_send_guard: Arc::new(Mutex::new(())),
             saved_devices: Vec::new(),
             dispatcher: RemoteDispatcher::new(8, 64),
             active_runtime: None,
@@ -268,10 +446,15 @@ impl TvControlCoordinator {
         };
         let selected = service.selected_device();
         if let Ok(Some(device)) = &selected {
+            if !self.saved_devices.iter().any(|saved| saved.id == device.id) {
+                self.saved_devices.push(device.clone());
+            }
             self.app_state.select_device(device.display());
-            let generation = self.app_state.selection_generation();
-            self.app_state
-                .set_verified_actions(generation, device.verified_actions.clone());
+            self.wake_stage = if device.wake.active_mac().is_some() {
+                WakeStage::Idle
+            } else {
+                WakeStage::ConfigurationRequired
+            };
         }
         Some(RestoreSummary {
             list_error,
@@ -361,6 +544,7 @@ impl TvControlCoordinator {
             .gateway
             .clone()
             .ok_or(PairStartError::TransportUnavailable)?;
+        self.cancel_wake();
         self.bump_pair_attempt();
         self.pair_pending = true;
         Ok(PairPlan {
@@ -383,6 +567,12 @@ impl TvControlCoordinator {
         let service = self.service.clone()?;
         let gateway = self.gateway.clone()?;
         let id = self.app_state.selected_device()?;
+        self.cancel_wake();
+        self.wake_stage = if self.selected_wake_configured() {
+            WakeStage::Idle
+        } else {
+            WakeStage::ConfigurationRequired
+        };
         self.stop_active();
         self.bump_pair_attempt();
         self.pair_pending = false;
@@ -401,7 +591,251 @@ impl TvControlCoordinator {
             pair_epoch: self.pair_attempt,
             epoch: Arc::clone(&self.pair_epoch),
             guard: Arc::clone(&self.setup_guard),
+            timeout: None,
         })
+    }
+
+    pub fn begin_power_probe(&mut self) -> Option<ConnectPlan> {
+        let mut plan = self.begin_connect()?;
+        plan.timeout = Some(std::time::Duration::from_secs(2));
+        self.wake_stage = WakeStage::CheckingConnection;
+        Some(plan)
+    }
+
+    pub fn begin_power_toggle(&mut self, request: &SendRemoteAction) -> PowerStart {
+        if request.action() != crate::domain::RemoteAction::PowerToggle
+            || self.app_state.selected_device() != Some(request.target())
+            || self.app_state.selection_generation() != request.selection_generation()
+        {
+            return PowerStart::Stale;
+        }
+        if matches!(
+            self.wake_stage,
+            WakeStage::CheckingConnection | WakeStage::PacketSending | WakeStage::Reconnecting
+        ) {
+            return PowerStart::Busy;
+        }
+        if self.app_state.connection_state() == super::control_state::ConnectionState::Ready {
+            return PowerStart::Toggle;
+        }
+        if !self.selected_wake_configured() {
+            return PowerStart::MissingConfiguration;
+        }
+        self.begin_power_probe()
+            .map(PowerStart::Probe)
+            .unwrap_or(PowerStart::Unavailable)
+    }
+
+    pub fn finish_power_probe(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        result: Result<SessionPackage, ConnectFlowError>,
+    ) -> PowerProbeCompletion {
+        if self.wake_stage != WakeStage::CheckingConnection {
+            return PowerProbeCompletion::Ignored;
+        }
+        match self.finish_connect(attempt, generation, result) {
+            ConnectCompletion::Ignored => PowerProbeCompletion::Ignored,
+            ConnectCompletion::Connected { connection } => {
+                PowerProbeCompletion::Connected { connection }
+            }
+            ConnectCompletion::Failed(ConnectFlowError::Session(
+                TvSessionError::Offline | TvSessionError::Timeout,
+            )) => {
+                self.wake_stage = WakeStage::Idle;
+                self.begin_wake()
+                    .map(PowerProbeCompletion::Wake)
+                    .unwrap_or(PowerProbeCompletion::Failed(WakeFailure::Connection))
+            }
+            ConnectCompletion::Failed(error) => {
+                let failure = wake_connection_failure(error);
+                self.wake_stage = WakeStage::Failed(failure);
+                PowerProbeCompletion::Failed(failure)
+            }
+        }
+    }
+
+    pub fn selected_wake_configured(&self) -> bool {
+        self.app_state
+            .selected_device()
+            .and_then(|id| self.saved_devices.iter().find(|device| device.id == id))
+            .is_some_and(|device| device.wake.active_mac().is_some())
+    }
+
+    pub fn cancel_wake(&mut self) {
+        let send_guard = self.wake_send_guard.clone();
+        let Ok(_send_guard) = send_guard.lock() else {
+            return;
+        };
+        let checking = self.wake_stage == WakeStage::CheckingConnection;
+        let active = matches!(
+            self.wake_stage,
+            WakeStage::CheckingConnection | WakeStage::PacketSending | WakeStage::Reconnecting
+        );
+        self.wake_attempt = self.wake_attempt.saturating_add(1);
+        self.wake_epoch.store(self.wake_attempt, Ordering::SeqCst);
+        if checking {
+            self.connect_attempt = self.connect_attempt.saturating_add(1);
+        }
+        if active {
+            self.bump_pair_attempt();
+        }
+        self.wake_stage = match self.wake_stage {
+            WakeStage::CheckingConnection => WakeStage::Cancelled,
+            WakeStage::PacketSending => WakeStage::CancelledDuringSend,
+            WakeStage::Reconnecting => WakeStage::CancelledAfterSend,
+            stage => stage,
+        };
+    }
+
+    pub fn save_wake_configuration(
+        &mut self,
+        wake: WakeConfiguration,
+    ) -> Result<SavedDevice, RepositoryError> {
+        if wake.active.is_some() && wake.active_mac().is_none() {
+            return Err(RepositoryError::Corrupt);
+        }
+        let id = self
+            .app_state
+            .selected_device()
+            .ok_or(RepositoryError::Corrupt)?;
+        let service = self.service.clone().ok_or(RepositoryError::Unavailable)?;
+        self.cancel_wake();
+        let device = {
+            let _guard = self
+                .setup_guard
+                .lock()
+                .map_err(|_| RepositoryError::Unavailable)?;
+            service.save_wake_configuration(id, wake)?
+        };
+        if let Some(saved) = self.saved_devices.iter_mut().find(|saved| saved.id == id) {
+            *saved = device.clone();
+        } else {
+            self.saved_devices.push(device.clone());
+        }
+        self.wake_stage =
+            if self.app_state.connection_state() == super::control_state::ConnectionState::Ready {
+                WakeStage::Connected
+            } else if wake.active_mac().is_some() {
+                WakeStage::Idle
+            } else {
+                WakeStage::ConfigurationRequired
+            };
+        Ok(device)
+    }
+
+    pub fn begin_wake(&mut self) -> Option<WakePlan> {
+        if self.pair_pending
+            || self.forget_pending.is_some()
+            || matches!(
+                self.wake_stage,
+                WakeStage::CheckingConnection | WakeStage::PacketSending | WakeStage::Reconnecting
+            )
+            || self.app_state.connection_state() == super::control_state::ConnectionState::Ready
+        {
+            return None;
+        }
+        let device = self.app_state.selected_device()?;
+        let saved = self.saved_devices.iter().find(|item| item.id == device)?;
+        let mac = saved.wake.active_mac()?;
+        let host = saved.host.clone();
+        let transport = self.wake_transport.clone()?;
+        if self.service.is_none() || self.gateway.is_none() {
+            return None;
+        }
+        self.cancel_wake();
+        self.bump_pair_attempt();
+        self.connect_attempt = self.connect_attempt.saturating_add(1);
+        self.wake_stage = WakeStage::PacketSending;
+        Some(WakePlan {
+            attempt: self.wake_attempt,
+            generation: self.app_state.selection_generation(),
+            device,
+            host,
+            mac,
+            transport,
+            permit: WakePermit {
+                epoch: self.wake_epoch.clone(),
+                attempt: self.wake_attempt,
+                send_guard: self.wake_send_guard.clone(),
+            },
+        })
+    }
+
+    fn wake_matches(&self, attempt: u64, generation: u64, device: DeviceId) -> bool {
+        self.wake_attempt == attempt
+            && self.app_state.selection_generation() == generation
+            && self.app_state.selected_device() == Some(device)
+    }
+
+    pub fn finish_wake_send(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        device: DeviceId,
+        result: Result<(), WakeSendError>,
+    ) -> Option<WakeReconnectPlan> {
+        if !self.wake_matches(attempt, generation, device)
+            || self.wake_stage != WakeStage::PacketSending
+        {
+            return None;
+        }
+        if let Err(error) = result {
+            self.wake_stage = WakeStage::Failed(WakeFailure::Local(error));
+            return None;
+        }
+        self.wake_stage = WakeStage::Reconnecting;
+        Some(WakeReconnectPlan {
+            attempt,
+            generation,
+            device,
+            service: self.service.clone()?,
+            gateway: self.gateway.clone()?,
+            pair_epoch: self.pair_attempt,
+            epoch: self.pair_epoch.clone(),
+            wake_epoch: self.wake_epoch.clone(),
+            guard: self.setup_guard.clone(),
+        })
+    }
+
+    pub fn finish_wake_reconnect(
+        &mut self,
+        attempt: u64,
+        generation: u64,
+        device: DeviceId,
+        result: Result<SessionPackage, WakeFailure>,
+    ) -> ConnectCompletion {
+        if !self.wake_matches(attempt, generation, device)
+            || self.wake_stage != WakeStage::Reconnecting
+        {
+            return ConnectCompletion::Ignored;
+        }
+        match result {
+            Ok(package) => {
+                let Some((saved, connection)) = package.take() else {
+                    return ConnectCompletion::Ignored;
+                };
+                if saved.id != device {
+                    return ConnectCompletion::Ignored;
+                }
+                self.app_state
+                    .set_pairing_state(generation, super::control_state::PairingState::Ready);
+                self.app_state
+                    .set_connection_state(generation, super::control_state::ConnectionState::Ready);
+                self.wake_stage = WakeStage::Ready;
+                ConnectCompletion::Connected { connection }
+            }
+            Err(error) => {
+                self.bump_pair_attempt();
+                self.app_state.set_connection_state(
+                    generation,
+                    super::control_state::ConnectionState::Failed,
+                );
+                self.wake_stage = WakeStage::FailedAfterSend(error);
+                ConnectCompletion::Failed(ConnectFlowError::Session(TvSessionError::Offline))
+            }
+        }
     }
 
     pub fn begin_forget(&mut self) -> Option<ForgetPlan> {
@@ -410,11 +844,13 @@ impl TvControlCoordinator {
         }
         let service = self.service.clone()?;
         let id = self.app_state.selected_device()?;
+        self.cancel_wake();
         self.stop_active();
         self.bump_pair_attempt();
         self.pair_pending = false;
         self.connect_attempt = self.connect_attempt.saturating_add(1);
         self.app_state.clear_selection();
+        self.wake_stage = WakeStage::ConfigurationRequired;
         self.observed = None;
         self.forget_pending = Some(id);
         Some(ForgetPlan {
@@ -458,6 +894,7 @@ impl TvControlCoordinator {
                         *saved = device.clone();
                     }
                     self.stop_active();
+                    self.cancel_wake();
                     self.app_state.restart_selection(device.display());
                 }
                 return PairCompletion::StaleRepaired;
@@ -481,6 +918,7 @@ impl TvControlCoordinator {
                     return PairCompletion::Ignored;
                 };
                 self.stop_active();
+                self.cancel_wake();
                 if self.app_state.selected_device() == Some(device.id) {
                     self.app_state.restart_selection(device.display());
                 } else {
@@ -500,8 +938,7 @@ impl TvControlCoordinator {
                     .set_pairing_state(generation, super::control_state::PairingState::Ready);
                 self.app_state
                     .set_connection_state(generation, super::control_state::ConnectionState::Ready);
-                self.app_state
-                    .set_verified_actions(generation, device.verified_actions);
+                self.wake_stage = WakeStage::Connected;
                 PairCompletion::Connected {
                     generation,
                     connection,
@@ -532,14 +969,7 @@ impl TvControlCoordinator {
                     .set_pairing_state(generation, super::control_state::PairingState::Ready);
                 self.app_state
                     .set_connection_state(generation, super::control_state::ConnectionState::Ready);
-                let verified_actions = self
-                    .saved_devices
-                    .iter()
-                    .find(|saved| saved.id == device.id)
-                    .map(|saved| saved.verified_actions.clone())
-                    .unwrap_or(device.verified_actions);
-                self.app_state
-                    .set_verified_actions(generation, verified_actions);
+                self.wake_stage = WakeStage::Connected;
                 ConnectCompletion::Connected { connection }
             }
             Err(error) => {
@@ -547,6 +977,13 @@ impl TvControlCoordinator {
                     generation,
                     super::control_state::ConnectionState::Failed,
                 );
+                if self.wake_stage != WakeStage::CheckingConnection {
+                    self.wake_stage = if self.selected_wake_configured() {
+                        WakeStage::Idle
+                    } else {
+                        WakeStage::ConfigurationRequired
+                    };
+                }
                 if matches!(
                     error,
                     ConnectFlowError::Session(TvSessionError::TokenRejected)
@@ -565,6 +1002,7 @@ impl TvControlCoordinator {
             return Err(RepositoryError::Unavailable);
         }
         let service = self.service.clone().ok_or(RepositoryError::Unavailable)?;
+        self.cancel_wake();
         self.bump_pair_attempt();
         let device = {
             let _guard = self
@@ -580,29 +1018,12 @@ impl TvControlCoordinator {
         } else {
             self.app_state.select_device(device.display());
         }
-        let generation = self.app_state.selection_generation();
-        self.app_state
-            .set_verified_actions(generation, device.verified_actions.clone());
+        self.wake_stage = if device.wake.active_mac().is_some() {
+            WakeStage::Idle
+        } else {
+            WakeStage::ConfigurationRequired
+        };
         Ok(device)
-    }
-
-    pub fn set_action_verified(
-        &mut self,
-        action: RemoteAction,
-        verified: bool,
-    ) -> Result<(), RepositoryError> {
-        let id = self
-            .app_state
-            .selected_device()
-            .ok_or(RepositoryError::Unavailable)?;
-        let service = self.service.as_ref().ok_or(RepositoryError::Unavailable)?;
-        let actions = service.set_action_verified(id, action, verified)?;
-        if let Some(saved) = self.saved_devices.iter_mut().find(|saved| saved.id == id) {
-            saved.verified_actions = actions.clone();
-        }
-        let generation = self.app_state.selection_generation();
-        self.app_state.set_verified_actions(generation, actions);
-        Ok(())
     }
 
     pub fn stop_active(&mut self) {
@@ -701,6 +1122,11 @@ impl TvControlCoordinator {
                     generation,
                     super::control_state::ConnectionState::Failed,
                 );
+                self.wake_stage = if self.selected_wake_configured() {
+                    WakeStage::Idle
+                } else {
+                    WakeStage::ConfigurationRequired
+                };
                 if matches!(event, TvSessionEvent::TokenRejected) {
                     self.app_state
                         .set_pairing_state(generation, super::control_state::PairingState::Failed);
@@ -828,7 +1254,7 @@ impl TvControlCoordinator {
 mod tests {
     use super::*;
     use crate::application::control_state::{ConnectionState, PairingState};
-    use crate::domain::DeviceDisplay;
+    use crate::domain::{DeviceDisplay, RemoteAction};
     use futures_util::stream;
 
     #[derive(Clone)]
@@ -873,7 +1299,7 @@ mod tests {
             id,
             label: "TV".to_owned(),
             host: TvHost::parse("tv.local").unwrap(),
-            verified_actions: vec![RemoteAction::Up, RemoteAction::Down],
+            wake: super::super::wake::WakeConfiguration::default(),
         }
     }
 
@@ -890,9 +1316,6 @@ mod tests {
         coordinator
             .app_state
             .set_connection_state(generation, ConnectionState::Ready);
-        coordinator
-            .app_state
-            .set_verified_actions(generation, device.verified_actions.clone());
         (coordinator, device)
     }
 
@@ -1002,5 +1425,141 @@ mod tests {
             coordinator.app_state.connection_state(),
             ConnectionState::NotConnected
         );
+    }
+
+    #[test]
+    fn cancelling_wake_ignores_a_late_packet_completion() {
+        let mut coordinator = TvControlCoordinator::new(AppServices::without_adapters());
+        let device = saved_device(DeviceId::new(8));
+        coordinator.app_state.select_device(device.display());
+        let generation = coordinator.app_state.selection_generation();
+        coordinator.wake_attempt = 4;
+        coordinator.wake_epoch.store(4, Ordering::SeqCst);
+        coordinator.wake_stage = WakeStage::PacketSending;
+        coordinator.cancel_wake();
+        assert_eq!(coordinator.wake_stage, WakeStage::CancelledDuringSend);
+        assert_eq!(coordinator.wake_epoch.load(Ordering::SeqCst), 5);
+        assert!(coordinator
+            .finish_wake_send(4, generation, device.id, Ok(()))
+            .is_none());
+        assert_eq!(coordinator.wake_stage, WakeStage::CancelledDuringSend);
+    }
+
+    #[test]
+    fn cancelling_reconnect_preserves_packet_sent_fact() {
+        let mut coordinator = TvControlCoordinator::new(AppServices::without_adapters());
+        coordinator.wake_stage = WakeStage::Reconnecting;
+
+        coordinator.cancel_wake();
+
+        assert_eq!(coordinator.wake_stage, WakeStage::CancelledAfterSend);
+    }
+
+    #[test]
+    fn missing_or_invalid_pairing_material_stops_power_before_wake() {
+        for error in [
+            ConnectFlowError::Reconnect(ReconnectError::PairingRequired),
+            ConnectFlowError::Reconnect(ReconnectError::MissingTrust),
+            ConnectFlowError::Reconnect(ReconnectError::HostChanged),
+            ConnectFlowError::Reconnect(ReconnectError::Credential(
+                super::super::credential_store::SecretError::InvalidToken,
+            )),
+            ConnectFlowError::Session(TvSessionError::TokenRejected),
+        ] {
+            assert_eq!(wake_connection_failure(error), WakeFailure::PairingRequired);
+        }
+    }
+
+    #[test]
+    fn wake_becomes_ready_only_after_matching_reconnect_completion() {
+        let mut coordinator = TvControlCoordinator::new(AppServices::without_adapters());
+        let device = saved_device(DeviceId::new(15));
+        coordinator.app_state.select_device(device.display());
+        let generation = coordinator.app_state.selection_generation();
+        coordinator.wake_attempt = 3;
+        coordinator.wake_stage = WakeStage::Reconnecting;
+
+        assert!(matches!(
+            coordinator.finish_wake_reconnect(
+                2,
+                generation,
+                device.id,
+                Ok(SessionPackage::new(
+                    device.clone(),
+                    Box::new(FakeConnection)
+                ))
+            ),
+            ConnectCompletion::Ignored
+        ));
+        assert_eq!(coordinator.wake_stage, WakeStage::Reconnecting);
+        assert!(matches!(
+            coordinator.finish_wake_reconnect(
+                3,
+                generation,
+                device.id,
+                Ok(SessionPackage::new(device, Box::new(FakeConnection)))
+            ),
+            ConnectCompletion::Connected { .. }
+        ));
+        assert_eq!(coordinator.wake_stage, WakeStage::Ready);
+        assert_eq!(
+            coordinator.app_state.connection_state(),
+            ConnectionState::Ready
+        );
+    }
+
+    #[test]
+    fn invalid_wake_configuration_does_not_cancel_an_active_send() {
+        let mut coordinator = TvControlCoordinator::new(AppServices::without_adapters());
+        let device = saved_device(DeviceId::new(18));
+        coordinator.app_state.select_device(device.display());
+        coordinator.wake_stage = WakeStage::PacketSending;
+        coordinator.wake_attempt = 4;
+
+        assert!(matches!(
+            coordinator.save_wake_configuration(WakeConfiguration {
+                wired: None,
+                wifi: None,
+                active: Some(super::super::wake::WakeInterface::Wired),
+            }),
+            Err(RepositoryError::Corrupt)
+        ));
+        assert_eq!(coordinator.wake_stage, WakeStage::PacketSending);
+        assert_eq!(coordinator.wake_attempt, 4);
+    }
+
+    #[tokio::test]
+    async fn cancelling_wake_drops_an_in_flight_reconnect_wait() {
+        let epoch = Arc::new(AtomicU64::new(4));
+        let cancelled = epoch.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            cancelled.store(5, Ordering::SeqCst);
+        });
+
+        let result = await_wake_work(
+            4,
+            &epoch,
+            tokio::time::Instant::now() + std::time::Duration::from_secs(1),
+            std::future::pending::<()>(),
+        )
+        .await;
+
+        assert_eq!(result, Err(WakeFailure::Connection));
+    }
+
+    #[tokio::test]
+    async fn reconnect_wait_stops_at_its_deadline() {
+        let epoch = AtomicU64::new(4);
+
+        let result = await_wake_work(
+            4,
+            &epoch,
+            tokio::time::Instant::now() + std::time::Duration::from_millis(10),
+            std::future::pending::<()>(),
+        )
+        .await;
+
+        assert_eq!(result, Err(WakeFailure::Timeout));
     }
 }

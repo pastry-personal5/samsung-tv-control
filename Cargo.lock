@@ -2824,6 +2824,7 @@ dependencies = [
  "base64",
  "futures-util",
  "iced",
+ "libc",
  "security-framework",
  "serde",
  "serde_json",

@@ -12,7 +12,6 @@ pub enum ChannelEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodecError {
-    DeferredAction,
     OversizedEvent,
     MalformedEvent,
     InvalidToken,
@@ -21,7 +20,7 @@ pub enum CodecError {
 /// Encodes one Samsung remote Click frame; UI and application code never own key strings.
 pub fn encode_click(action: RemoteAction) -> Result<String, CodecError> {
     let key = match action {
-        RemoteAction::PowerToggle => return Err(CodecError::DeferredAction),
+        RemoteAction::PowerToggle => "KEY_POWER",
         RemoteAction::Up => "KEY_UP",
         RemoteAction::Down => "KEY_DOWN",
         RemoteAction::Left => "KEY_LEFT",
@@ -97,10 +96,9 @@ mod tests {
             assert_eq!(json["params"]["Option"], "false");
             assert_eq!(json["params"]["TypeOfRemote"], "SendRemoteKey");
         }
-        assert_eq!(
-            encode_click(RemoteAction::PowerToggle),
-            Err(CodecError::DeferredAction)
-        );
+        let frame = encode_click(RemoteAction::PowerToggle).unwrap();
+        let json: Value = serde_json::from_str(&frame).unwrap();
+        assert_eq!(json["params"]["DataOfCmd"], "KEY_POWER");
     }
 
     #[test]

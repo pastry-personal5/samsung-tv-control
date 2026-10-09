@@ -46,5 +46,6 @@ wire frames.
 
 Hardware checks remain necessary for endpoint behavior, trust, individual
 keys, exact volume support, source/app events, text input, discovery, and wake.
-Wake placement remains an open UX decision in the
+Wake is placed in the Remote View's persistent Wake Steps and power-control
+group; its configuration lives in TV settings. See the
 [information architecture](planned-information-architecture.md).

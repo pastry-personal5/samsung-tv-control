@@ -3,29 +3,31 @@
 Status: Active
 
 This document describes how the first usable app's information is grouped.
-It establishes the default view and known relationships, with Wake placement
-still open. See the canonical [UX terms](ux-term.md).
+It establishes the default view and known relationships. See the canonical
+[UX terms](ux-term.md).
 
 ## Top-level structure
 
 ```text
 App window
 ├── Sidebar
+│   ├── Power → Power View
+│   ├── Remote → Remote View
 │   ├── Sources → Sources View
 │   ├── Apps → Apps View
 │   ├── Text Input → Text Input View
-│   └── Main Toolbar — at bottom
-│       └── Settings button → Settings Window
+│   └── Settings button → Settings Window
 └── Main Pane
     ├── Remote View — default view
-    │   ├── Selected TV context, Pairing and Connection status
-    │   ├── Current request feedback and recovery action
     │   ├── Power Toggle
     │   ├── Directional Pad
     │   ├── Back and Home
     │   └── Volume controls
-    ├── Global Messages Pane — all user-relevant app messages
-    └── Activity View — recent request and Connection events
+    ├── Power View
+    │   ├── Wake Steps
+    │   ├── Wake and Power Toggle
+    │   └── Recovery guidance
+    └── Global Messages Pane — all user-relevant app messages
 
 Settings Window
 ├── Settings Sidebar
@@ -37,30 +39,28 @@ Settings Window
 ```
 
 The main app has two main parts: the Sidebar on the left and the Main Pane on
-the right. It opens to the Remote View. Selecting Sources, Apps, or Text Input
+the right. It opens to the Remote View. Selecting Power, Sources, Apps, or Text Input
 in the Sidebar displays the corresponding view in the Main Pane. The Global
-Messages Pane and Activity View remain below that view. The Main Toolbar sits
-at the bottom of the Sidebar and contains a Settings button. The Settings
-button opens a separate Settings Window, which has
+Messages Pane remains below that view. The icon-only Settings button sits at
+the bottom of the Sidebar and opens a separate Settings Window, which has
 its own Settings Sidebar and Settings Main Pane. TV is the first Settings
-Sidebar item. The lower Main Pane always shows a Global Messages Pane followed
-by a separate Activity View. The Global Messages Pane also receives messages
-originating in the Settings Window.
+Sidebar item. The Global Messages Pane also receives messages originating in
+the Settings Window.
 
 ## Product areas
 
 | Product area | User purpose | Placement |
 | --- | --- | --- |
 | Remote View | Send navigation, power, and volume requests to the Selected TV. | Main Pane by default. |
+| Power View | Wake a selected TV and monitor remote readiness; send power toggle when connected. | Select Power in the Sidebar, above Remote; also opens from Remote's disconnected Power Toggle. |
 | Sources View | Request a supported source or navigate the TV's source chooser. | Select Sources in the Sidebar. |
 | Apps View | Browse and launch apps reported by the Selected TV. | Select Apps in the Sidebar. |
 | Text Input View | Send text to a focused native TV text field when supported. | Select Text Input in the Sidebar. |
-| Global Messages Pane | Read user-relevant messages from the whole app, including Settings Window results. | Lower Main Pane, above the Activity View. |
-| Activity View | Inspect recent request outcomes and Connection events. | Below the Global Messages Pane; always visible. |
+| Global Messages Pane | Read user-relevant messages from the whole app, including Settings Window results. | Lower Main Pane, below the Messages split bar. |
 | TV setup | Discover a TV or enter its host, pair, and save it for later use. | TV settings in the Settings Window. Open it with the Settings button. |
-| Wake | Send a wake request and report whether reconnection succeeds. | TBD. |
+| Wake | Send one wake request and report trusted remote reconnection progress. | Persistent Wake Steps and power controls in Power View; configuration lives in TV settings. |
 
-Sources, Apps, and Text Input are named Sidebar destinations. Their views
+Power, Sources, Apps, and Text Input are named Sidebar destinations. Their views
 follow the same Selected TV and application monitoring state as the Remote
 View; changing views does not change the Selected TV or open another TV
 session.
@@ -70,23 +70,24 @@ session.
 The app opens the main app window to the Remote View, including on first
 launch. Do not automatically open the Settings Window or add a separate
 onboarding screen. When no TV is selected, keep the main app window visible
-with the standard Remote View layout, disable its remote controls, and show a
-short status line pointing to Settings. The status line is not a setup prompt.
-The Settings Window opens only when the user clicks Settings in the Main Toolbar.
+with the standard Remote View layout and disabled remote controls. A disabled
+control exposes its specific reason through accessible text and its tooltip;
+the app does not add a persistent lifecycle summary. The Settings Window opens
+only when the user clicks the Settings button.
 
-The Remote View is scoped to one Selected TV at a time. Show the selected TV's
-identity, Pairing and Connection status, and the most relevant request outcome
-near the controls. Keep request outcome separate from any observed TV state.
-Show a recovery action in context when the user can act, such as retrying a
-Connection or opening TV settings to resolve Pairing. TV selection happens in
-TV settings; placement of any additional device management remains TBD.
+The Remote View is scoped to one Selected TV at a time. Do not show a persistent
+selected-TV, Pairing, Connection, or aggregate availability summary near the
+controls. Keep request outcome separate from any observed TV state, and route
+user-relevant outcomes to Global Messages. A blocked control exposes the
+recovery explanation in context. TV selection happens in TV settings;
+placement of any additional device management remains TBD.
 
-The Global Messages Pane is a chronological, session-only feed of messages a
-user needs to know across both windows. Keep its latest entry at the bottom.
-The Activity View shows structured recent command outcomes and Connection
-events, also for the current session. A message can summarize an activity
-event; both must agree on its outcome. Neither pane stores TV credentials,
-entered text, addresses, or raw network data.
+The Global Messages Pane is a chronological, session-only feed of concise
+messages a user needs to know across both windows. Keep its latest entry at the
+bottom. Each row has a fixed-width severity column and message-content column;
+the severity text and semantic colour communicate its level without sequence
+numbers or presentation bookkeeping. The pane is vertically scrollable and
+does not store TV credentials, entered text, addresses, or raw network data.
 
 When the TV Selection Table has no rows, hide it and center the
 **Discover TVs** button horizontally and vertically within the Settings Main
@@ -116,7 +117,6 @@ that every control is usable on every TV.
 
 ## Open placement decisions
 
-- Where Wake is accessed.
 - Which additional settings pages appear after TV in the Settings Sidebar.
 - Where device management and connection details live.
 

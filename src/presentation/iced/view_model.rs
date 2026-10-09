@@ -9,22 +9,6 @@ pub const MIN_MESSAGE_PANE_HEIGHT: u16 = 120;
 pub const MAX_MESSAGE_PANE_HEIGHT: u16 = 360;
 pub const MESSAGE_FEED_CAPACITY: usize = 100;
 
-pub(super) const fn remote_action_label(action: RemoteAction) -> &'static str {
-    match action {
-        RemoteAction::PowerToggle => "Power Toggle",
-        RemoteAction::Up => "Up",
-        RemoteAction::Down => "Down",
-        RemoteAction::Left => "Left",
-        RemoteAction::Right => "Right",
-        RemoteAction::Enter => "Enter",
-        RemoteAction::Back => "Back",
-        RemoteAction::Home => "Home",
-        RemoteAction::Mute => "Mute",
-        RemoteAction::VolumeUp => "Volume Up",
-        RemoteAction::VolumeDown => "Volume Down",
-    }
-}
-
 pub(super) fn feed_is_at_bottom(content_height: f32, viewport_height: f32, offset: f32) -> bool {
     (content_height - viewport_height).max(0.0) - offset <= 1.0
 }
@@ -37,10 +21,6 @@ pub(super) const fn rejection_message(reason: RemoteActionRejection) -> &'static
         }
         RemoteActionRejection::PairingRequired => "Pair this TV before sending remote actions.",
         RemoteActionRejection::NotConnected => "Connect to this TV before sending remote actions.",
-        RemoteActionRejection::DeferredAction => "Power control is planned for a later milestone.",
-        RemoteActionRejection::UnverifiedAction => {
-            "This action has not been verified on the selected TV."
-        }
     }
 }
 
@@ -94,6 +74,7 @@ const fn connection_status_text(state: ConnectionState) -> LifecycleStatusText {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimaryView {
+    Power,
     Remote,
     Sources,
     Apps,
@@ -103,6 +84,7 @@ pub enum PrimaryView {
 impl PrimaryView {
     pub const fn title(self) -> &'static str {
         match self {
+            Self::Power => "Power",
             Self::Remote => "Remote",
             Self::Sources => "Sources",
             Self::Apps => "Apps",
@@ -300,7 +282,6 @@ pub struct ViewModel {
     message_pane_height: u16,
     messages: MessageFeed,
     control_state: RemoteControlViewState,
-    activity: VecDeque<String>,
 }
 
 impl Default for ViewModel {
@@ -316,7 +297,6 @@ impl ViewModel {
             message_pane_height: DEFAULT_MESSAGE_PANE_HEIGHT,
             messages: MessageFeed::new(MESSAGE_FEED_CAPACITY),
             control_state: RemoteControlViewState::from_application_state(app_state),
-            activity: VecDeque::new(),
         }
     }
     pub fn primary_view(&self) -> PrimaryView {
@@ -352,42 +332,11 @@ impl ViewModel {
     pub fn update_control_state(&mut self, app_state: &ControlState) {
         self.control_state = RemoteControlViewState::from_application_state(app_state);
     }
-
-    pub fn activity(&self) -> &VecDeque<String> {
-        &self.activity
-    }
-
-    pub fn add_activity(&mut self, text: impl Into<String>) {
-        if self.activity.len() >= MESSAGE_FEED_CAPACITY {
-            let _ = self.activity.pop_front();
-        }
-        self.activity.push_back(text.into());
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn remote_action_labels_use_canonical_control_names() {
-        let expected = [
-            (RemoteAction::PowerToggle, "Power Toggle"),
-            (RemoteAction::Up, "Up"),
-            (RemoteAction::Down, "Down"),
-            (RemoteAction::Left, "Left"),
-            (RemoteAction::Right, "Right"),
-            (RemoteAction::Enter, "Enter"),
-            (RemoteAction::Back, "Back"),
-            (RemoteAction::Home, "Home"),
-            (RemoteAction::Mute, "Mute"),
-            (RemoteAction::VolumeUp, "Volume Up"),
-            (RemoteAction::VolumeDown, "Volume Down"),
-        ];
-        for (action, label) in expected {
-            assert_eq!(remote_action_label(action), label);
-        }
-    }
 
     #[test]
     fn new_state_has_no_selected_tv() {
@@ -472,14 +421,12 @@ mod tests {
             !RemoteControlViewState::from_application_state(&app_state).remote_actions_enabled()
         );
         let _ = app_state.set_connection_state(generation, ConnectionState::Ready);
-        let _ = app_state.set_verified_actions(generation, [RemoteAction::Up]);
-
         let control_state = RemoteControlViewState::from_application_state(&app_state);
         assert!(control_state.remote_actions_enabled());
         assert_eq!(control_state.disabled_reason, None);
         assert_eq!(
             control_state.action_disabled_reason(RemoteAction::PowerToggle),
-            Some("Power control is planned for a later milestone.")
+            None
         );
     }
 

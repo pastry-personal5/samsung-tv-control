@@ -9,6 +9,8 @@ pub mod tv_control_coordinator;
 pub mod tv_discovery;
 pub mod tv_session;
 pub mod tv_setup_service;
+pub mod wake;
+pub mod wake_transport;
 
 pub use control_state::{
     ConnectionState, ControlState, ControlStatus, LifecycleUpdateResult, PairingState,

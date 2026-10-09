@@ -52,7 +52,6 @@ pub struct ControlState {
     selection_generation: u64,
     pairing: PairingState,
     connection: ConnectionState,
-    verified_actions: Vec<RemoteAction>,
 }
 
 impl ControlState {
@@ -63,7 +62,6 @@ impl ControlState {
             selection_generation: 0,
             pairing: PairingState::NotStarted,
             connection: ConnectionState::NotConnected,
-            verified_actions: Vec::new(),
         }
     }
 
@@ -172,27 +170,6 @@ impl ControlState {
         }
     }
 
-    /// Records hardware-verified actions for the current selected generation.
-    /// Unknown actions remain unavailable until the selected TV has been checked.
-    pub fn set_verified_actions(
-        &mut self,
-        generation: u64,
-        actions: impl IntoIterator<Item = RemoteAction>,
-    ) -> LifecycleUpdateResult {
-        let result = self.validate_lifecycle_generation(generation);
-        if result == LifecycleUpdateResult::Applied {
-            self.verified_actions = actions
-                .into_iter()
-                .filter(|action| !action.is_deferred())
-                .collect();
-        }
-        result
-    }
-
-    pub fn is_action_verified(&self, action: RemoteAction) -> bool {
-        self.verified_actions.contains(&action)
-    }
-
     /// Applies the pure remote-command admission policy to one request.
     ///
     /// An eligible result says only that local policy passed. No request is
@@ -213,10 +190,6 @@ impl ControlState {
             Some(RemoteActionRejection::PairingRequired)
         } else if self.connection != ConnectionState::Ready {
             Some(RemoteActionRejection::NotConnected)
-        } else if request.action().is_deferred() {
-            Some(RemoteActionRejection::DeferredAction)
-        } else if !self.verified_actions.contains(&request.action()) {
-            Some(RemoteActionRejection::UnverifiedAction)
         } else {
             None
         };
@@ -230,7 +203,6 @@ impl ControlState {
     fn reset_lifecycle(&mut self) {
         self.pairing = PairingState::NotStarted;
         self.connection = ConnectionState::NotConnected;
-        self.verified_actions.clear();
     }
 
     fn validate_lifecycle_generation(&self, generation: u64) -> LifecycleUpdateResult {
@@ -356,23 +328,24 @@ mod tests {
         );
 
         let _ = state.set_connection_state(generation, ConnectionState::Ready);
-        let _ = state.set_verified_actions(generation, [RemoteAction::Up]);
-        let request = SendRemoteAction::new(DeviceId::new(1), generation, RemoteAction::Up);
-        assert_eq!(
-            state.evaluate_remote_action(request.clone()),
-            RemoteActionOutcome::Eligible(request)
-        );
+        for action in RemoteAction::LIVE_ACTIONS {
+            let request = SendRemoteAction::new(DeviceId::new(1), generation, action);
+            assert_eq!(
+                state.evaluate_remote_action(request.clone()),
+                RemoteActionOutcome::Eligible(request)
+            );
+        }
         assert_eq!(
             state.control_status(RemoteAction::Up),
             ControlStatus::Available
         );
         assert_eq!(
             state.control_status(RemoteAction::PowerToggle),
-            ControlStatus::Unavailable(RemoteActionRejection::DeferredAction)
+            ControlStatus::Available
         );
         assert_eq!(
             state.control_status(RemoteAction::Down),
-            ControlStatus::Unavailable(RemoteActionRejection::UnverifiedAction)
+            ControlStatus::Available
         );
     }
 

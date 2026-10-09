@@ -12,11 +12,12 @@ use crate::application::certificate_trust::{
 };
 use crate::application::device_repository::{DeviceRepository, RepositoryError, SavedDevice};
 use crate::application::tv_address::TvHost;
+use crate::application::wake::{WakeConfiguration, WakeInterface};
 use crate::domain::DeviceId;
-use crate::domain::RemoteAction;
 
 const MAX_FILE_BYTES: u64 = 1024 * 1024;
-const VERSION: u32 = 1;
+const DEVICE_VERSION: u32 = 2;
+const TRUST_VERSION: u32 = 1;
 
 pub struct LocalDeviceRepository {
     file: JsonFile,
@@ -44,7 +45,14 @@ struct DiskDevice {
     label: String,
     host: String,
     #[serde(default)]
-    verified_actions: Vec<RemoteAction>,
+    wake: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DiskWake {
+    wired: Option<String>,
+    wifi: Option<String>,
+    active: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -62,7 +70,7 @@ struct DiskTrustRecord {
 impl Default for DiskDevices {
     fn default() -> Self {
         Self {
-            version: VERSION,
+            version: DEVICE_VERSION,
             selected: None,
             devices: Vec::new(),
         }
@@ -72,7 +80,7 @@ impl Default for DiskDevices {
 impl Default for DiskTrust {
     fn default() -> Self {
         Self {
-            version: VERSION,
+            version: TRUST_VERSION,
             records: HashMap::new(),
         }
     }
@@ -118,11 +126,22 @@ impl DeviceRepository for LocalDeviceRepository {
             .lock()
             .map_err(|_| RepositoryError::Unavailable)?;
         let mut disk = self.load()?;
+        disk.version = DEVICE_VERSION;
         let record = DiskDevice {
             id: device.id.to_string(),
             label: device.label.clone(),
             host: device.host.as_str().to_owned(),
-            verified_actions: device.verified_actions.clone(),
+            wake: Some(
+                serde_json::to_value(DiskWake {
+                    wired: device.wake.wired.map(|mac| mac.to_string()),
+                    wifi: device.wake.wifi.map(|mac| mac.to_string()),
+                    active: device.wake.active.map(|active| match active {
+                        WakeInterface::Wired => "wired".to_owned(),
+                        WakeInterface::WiFi => "wifi".to_owned(),
+                    }),
+                })
+                .map_err(|_| RepositoryError::Unavailable)?,
+            ),
         };
         if let Some(existing) = disk.devices.iter_mut().find(|item| item.id == record.id) {
             *existing = record;
@@ -141,6 +160,7 @@ impl DeviceRepository for LocalDeviceRepository {
             .lock()
             .map_err(|_| RepositoryError::Unavailable)?;
         let mut disk = self.load()?;
+        disk.version = DEVICE_VERSION;
         disk.devices.retain(|item| item.id != id.to_string());
         if disk.selected.as_deref() == Some(id.to_string().as_str()) {
             disk.selected = None;
@@ -169,6 +189,7 @@ impl DeviceRepository for LocalDeviceRepository {
             .lock()
             .map_err(|_| RepositoryError::Unavailable)?;
         let mut disk = self.load()?;
+        disk.version = DEVICE_VERSION;
         if let Some(id) = id {
             if !disk.devices.iter().any(|item| item.id == id.to_string()) {
                 return Err(RepositoryError::Corrupt);
@@ -191,7 +212,7 @@ impl LocalDeviceRepository {
                 _ => RepositoryError::Unavailable,
             })?
             .unwrap_or_default();
-        if disk.version != VERSION {
+        if disk.version != 1 && disk.version != DEVICE_VERSION {
             return Err(RepositoryError::Corrupt);
         }
         Ok(disk)
@@ -239,7 +260,7 @@ impl LocalCertificateTrustStore {
                 _ => TrustError::Unavailable,
             })?
             .unwrap_or_default();
-        if disk.version != VERSION {
+        if disk.version != TRUST_VERSION {
             return Err(TrustError::Corrupt);
         }
         Ok(disk)
@@ -247,15 +268,34 @@ impl LocalCertificateTrustStore {
 }
 
 fn convert_device(item: DiskDevice) -> Result<SavedDevice, RepositoryError> {
+    let wake = item
+        .wake
+        .and_then(|value| serde_json::from_value::<DiskWake>(value).ok())
+        .and_then(|value| {
+            let wired = value.wired.map(|mac| mac.parse()).transpose().ok()?;
+            let wifi = value.wifi.map(|mac| mac.parse()).transpose().ok()?;
+            let active = match value.active.as_deref() {
+                None => None,
+                Some("wired") => Some(WakeInterface::Wired),
+                Some("wifi") => Some(WakeInterface::WiFi),
+                _ => return None,
+            };
+            let wake = WakeConfiguration {
+                wired,
+                wifi,
+                active,
+            };
+            if wake.active.is_some() && wake.active_mac().is_none() {
+                return None;
+            }
+            Some(wake)
+        })
+        .unwrap_or_default();
     Ok(SavedDevice {
         id: DeviceId::parse_record_key(&item.id).ok_or(RepositoryError::Corrupt)?,
         label: item.label,
         host: TvHost::parse(&item.host).map_err(|_| RepositoryError::Corrupt)?,
-        verified_actions: item
-            .verified_actions
-            .into_iter()
-            .filter(|action| !action.is_deferred())
-            .collect(),
+        wake,
     })
 }
 
@@ -348,7 +388,7 @@ mod tests {
             id: DeviceId::generate(),
             label: "TV".to_owned(),
             host: TvHost::parse("tv.local").unwrap(),
-            verified_actions: vec![RemoteAction::Up],
+            wake: WakeConfiguration::default(),
         };
         repository.save(&device).unwrap();
         repository.select(Some(device.id)).unwrap();
@@ -374,44 +414,93 @@ mod tests {
     }
 
     #[test]
-    fn enter_action_roundtrips_with_the_new_stored_spelling() {
-        let dir = tempfile::tempdir().unwrap();
-        let repository = LocalDeviceRepository::new(dir.path());
-        let device = SavedDevice {
-            id: DeviceId::generate(),
-            label: "TV".to_owned(),
-            host: TvHost::parse("tv.local").unwrap(),
-            verified_actions: vec![RemoteAction::Enter],
-        };
-
-        repository.save(&device).unwrap();
-
-        let saved: serde_json::Value =
-            serde_json::from_slice(&fs::read(dir.path().join("devices.json")).unwrap()).unwrap();
-        assert_eq!(saved["devices"][0]["verified_actions"][0], "Enter");
-        assert_eq!(repository.list().unwrap(), vec![device]);
-    }
-
-    #[test]
-    fn old_select_action_is_rejected_without_changing_the_file() {
+    fn wake_settings_roundtrip_and_legacy_records_remain_selected() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("devices.json");
         let id = DeviceId::generate().to_string();
-        let old_file = serde_json::to_vec(&serde_json::json!({
-            "version": 1,
-            "selected": id,
-            "devices": [{
-                "id": id,
-                "label": "TV",
-                "host": "tv.local",
-                "verified_actions": ["Select"]
-            }]
-        }))
+        fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1,
+                "selected": id,
+                "devices": [{"id": id, "label": "TV", "host": "tv.local"}]
+            }))
+            .unwrap(),
+        )
         .unwrap();
-        fs::write(&path, &old_file).unwrap();
         let repository = LocalDeviceRepository::new(dir.path());
+        let mut device = repository.list().unwrap().remove(0);
+        assert_eq!(repository.selected().unwrap(), Some(device.id));
+        assert_eq!(device.wake, WakeConfiguration::default());
+        device.wake = WakeConfiguration {
+            wired: Some("02:11:22:33:44:55".parse().unwrap()),
+            wifi: None,
+            active: Some(WakeInterface::Wired),
+        };
+        repository.save(&device).unwrap();
+        assert_eq!(repository.list().unwrap(), vec![device]);
+        let disk: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(disk["version"], 2);
+    }
 
-        assert_eq!(repository.list(), Err(RepositoryError::Corrupt));
-        assert_eq!(fs::read(&path).unwrap(), old_file);
+    #[test]
+    fn malformed_wake_field_does_not_lose_saved_device_or_selection() {
+        let dir = tempfile::tempdir().unwrap();
+        let id = DeviceId::generate().to_string();
+        fs::write(
+            dir.path().join("devices.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version": 2,
+                "selected": id,
+                "devices": [{"id": id, "label": "TV", "host": "tv.local",
+                    "wake": {"wired": "not-a-mac", "wifi": null, "active": "wired"}}]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let repository = LocalDeviceRepository::new(dir.path());
+        let device = repository.list().unwrap().remove(0);
+        assert_eq!(device.wake, WakeConfiguration::default());
+        assert_eq!(repository.selected().unwrap(), Some(device.id));
+    }
+
+    #[test]
+    fn obsolete_verified_actions_are_ignored_and_removed_on_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devices.json");
+        let id = DeviceId::generate().to_string();
+        let second_id = DeviceId::generate().to_string();
+        fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1,
+                "selected": id,
+                "devices": [{
+                    "id": id,
+                    "label": "TV",
+                    "host": "tv.local",
+                    "verified_actions": ["Select"]
+            }, {
+                "id": second_id,
+                "label": "Other TV",
+                "host": "other.local",
+                "verified_actions": ["Enter"]
+                }]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let repository = LocalDeviceRepository::new(dir.path());
+        let devices = repository.list().unwrap();
+        assert_eq!(devices.len(), 2);
+        for device in devices {
+            repository.save(&device).unwrap();
+        }
+        let saved: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert!(saved["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|device| device.get("verified_actions").is_none()));
     }
 }

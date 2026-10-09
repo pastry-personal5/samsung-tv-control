@@ -4,6 +4,67 @@ Status: Active
 
 ## Entries
 
+- 2026-10-09 — Reviewed and hardened P1-M13. A selected TV now remains in
+  the in-memory Wake list if the full list load fails, and saving Wake settings
+  repairs a missing cache entry. Invalid active-interface configuration is
+  rejected before it can cancel an in-progress send. Wake readiness waits now
+  stop promptly after cancellation, even during an in-flight connection, and
+  continue to honor the 30-second deadline. The Iced control projection is
+  refreshed when the short probe falls through to Wake and when reconnect
+  fails. Added deterministic tests for these recovery paths and the selected
+  active MAC being handed to the transport exactly once. Cargo checks pass;
+  live-TV Wake remains unverified.
+
+- 2026-10-09 — Implemented P1-M13 with a Power Sidebar item and Power View,
+  per-TV wired/Wi-Fi Wake MAC settings, a single local-route directed-broadcast
+  magic packet, bounded trusted reconnect, cancellation and stale-result
+  protection, and connected-only Samsung `KEY_POWER`. The Remote View retains
+  Power Toggle: its disconnected path moves to Power View, checks the saved
+  connection for about two seconds, and Wakes only after an unreachable or
+  timed-out result. Missing Wake configuration disables the disconnected
+  button; pairing failures stop without a packet. Cancellation distinguishes
+  pre-send, unknown send outcome, and post-send status. The signed native
+  bundle was inspected for Sidebar order and Power View. Cargo gates pass;
+  physical Wake, local-network permission recovery, and latency remain
+  unverified.
+
+- 2026-10-09 — Completed P1-M12. The main and Settings windows now enforce
+  1100 x 760 and 1000 x 660 minimum sizes and always use Iced's dark theme.
+  The Sidebar has no product/title or shortcut chrome and uses an icon-only
+  Settings control with a Settings tooltip and ⌘, shortcut. The Remote View
+  no longer duplicates selected-TV, Pairing, Connection, or aggregate
+  availability text. Activity View and its projection were removed. Global
+  Messages now has a pointer-draggable split bar, a scrollable compact feed,
+  fixed-width semantic Info/Warning column, and concise message text without
+  sequence numbers, source bookkeeping, or an idle follow label. Manual key
+  verification was removed end-to-end: all standard actions are eligible after
+  selection, Pairing, and Connection; `verified_actions` is ignored when
+  loading and omitted on save, including legacy `Select` values. Cargo format,
+  Clippy, and test gates pass.
+
+- 2026-10-09 — Refined P1-M12 with the owner: the main Sidebar will lose its
+  product title, Main Toolbar label, and view-shortcut hint; Settings becomes
+  an accessible icon-only control. The Remote View lifecycle summary and
+  Activity View will be removed. A draggable split bar replaces the
+  Global-Messages height slider and its resize shortcuts. Global Messages will
+  be the single scrollable user-message surface, using a fixed-width labelled
+  and semantic-colour severity column, smaller readable text, concise
+  user-oriented content, no sequence/source bookkeeping, and no idle
+  “Following new messages.” text. Added the associated canonical Settings and
+  message terminology. No implementation has begun.
+
+- 2026-10-09 — Planned P1-M12 through P1-M14 with the owner. P1-M12 adopts
+  the always-dark graphite theme, main/settings minimum sizes of 1100 x 760
+  and 1000 x 660, and removes manual per-key action verification. The standard
+  action list is now implicitly verified; obsolete `verified_actions` data,
+  including historical `Select`, will be ignored when records are read and
+  removed on a later save. This deliberately supersedes the narrow P1-M11
+  saved-action spelling break because that field no longer has product
+  meaning. P1-M13 adds user-selected wired/Wi-Fi Wake MAC configuration, one
+  immediate WoL packet, a 30-second readiness-only retry window, persistent
+  Wake Steps, and connected-only `KEY_POWER` toggle behavior. P1-M14 refines
+  Remote and Settings into high-contrast cards. No implementation has begun.
+
 - 2026-10-09 — Completed P1-M11. Moved restoration, discovery/probe,
   Pairing/re-pair, reconnect, selection/session generations, dispatch,
   cancellation, and stale-event policy from Iced into

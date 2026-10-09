@@ -28,8 +28,4 @@ impl RemoteAction {
         Self::VolumeUp,
         Self::VolumeDown,
     ];
-
-    pub const fn is_deferred(self) -> bool {
-        matches!(self, Self::PowerToggle)
-    }
 }

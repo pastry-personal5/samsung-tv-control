@@ -215,7 +215,6 @@ mod tests {
         let generation = state.selection_generation();
         state.set_pairing_state(generation, PairingState::Ready);
         state.set_connection_state(generation, ConnectionState::Ready);
-        state.set_verified_actions(generation, RemoteAction::LIVE_ACTIONS);
         state
     }
 
@@ -303,15 +302,13 @@ mod tests {
     }
 
     #[test]
-    fn power_is_rejected_before_queue_admission() {
+    fn power_is_admitted_only_for_a_connected_session() {
         let state = connected_state();
         let mut dispatcher = RemoteDispatcher::new(1, 1);
-        assert_eq!(
+        assert!(matches!(
             dispatcher.admit(&state, request(&state, RemoteAction::PowerToggle)),
-            Admission::Rejected(DispatchRejection::Policy(
-                RemoteActionRejection::DeferredAction
-            ))
-        );
+            Admission::Queued(_)
+        ));
     }
 
     #[test]

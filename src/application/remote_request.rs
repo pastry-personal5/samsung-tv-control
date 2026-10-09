@@ -39,10 +39,6 @@ pub enum RemoteActionRejection {
     StaleSelectionGeneration,
     PairingRequired,
     NotConnected,
-    /// The action is deliberately outside the current live-control milestone.
-    DeferredAction,
-    /// No successful hardware check has established support for this action.
-    UnverifiedAction,
 }
 
 /// Result of evaluating a typed remote action against application state.

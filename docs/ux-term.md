@@ -11,23 +11,23 @@ here before using it elsewhere.
 
 | Term | Meaning and usage |
 | --- | --- |
-| **Sidebar** | The left-hand part of the main app window. It contains Sources, Apps, and Text Input navigation items, with the Main Toolbar at the bottom. |
+| **Sidebar** | The left-hand part of the main app window. It contains navigation items and the icon-only Settings button at the bottom. Do not place the product name, a toolbar heading, or a shortcut legend here. |
 | **Main Pane** | The right-hand part of the app window. It displays the current view. |
 | **Remote View** | The default Main Pane view containing the remote controls. |
 | **Sources View** | The Main Pane view for selecting a TV source or opening the TV's source chooser. |
 | **Apps View** | The Main Pane view for browsing and launching apps reported by the Selected TV. |
 | **Text Input View** | The Main Pane view for sending text to a focused TV text field when supported. |
-| **Global Messages Pane** | The resizable pane in the lower part of the main app's Main Pane, directly above the Activity View. It shows user-relevant messages from the Remote View and Settings Window in time order, with the newest message at the bottom. |
-| **Activity View** | The separate view below the Global Messages Pane, showing recent command outcomes and Connection events for the current app session. |
-| **Main Toolbar** | The toolbar anchored at the bottom of the main app's Sidebar. It contains the Settings button. |
-| **Settings button** | Opens the separate Settings Window. |
+| **Global Messages Pane** | The resizable, vertically scrollable pane in the lower part of the main app's Main Pane. It shows concise user-relevant messages from the main window and Settings Window in time order, with the newest message at the bottom. Each row has a fixed-width severity column and a message-content column; do not show sequence numbers or idle follow-state text. |
+| **Messages split bar** | The horizontal draggable divider immediately above the Global Messages Pane. It changes the pane height within its supported bounds. |
+| **Settings button** | The icon-only button at the bottom of the Sidebar that opens the separate Settings Window. Its accessible name and tooltip are “Settings”; its shortcut is ⌘,. |
 | **Sources** | Sidebar item that opens Sources View. |
 | **Apps** | Sidebar item that opens Apps View. |
 | **Text Input** | Sidebar item that opens Text Input View. |
-| **Settings Window** | The separate app window for preferences and TV selection. It has its own Settings Sidebar and Settings Main Pane. |
+| **Settings Window** | The separate app window for app configuration and TV selection. It has its own Settings Sidebar and Settings Main Pane. |
 | **Settings Sidebar** | The navigation sidebar inside the Settings Window. Its first item is TV. Other items are TBD. |
 | **Settings Main Pane** | The content area to the right of the Settings Sidebar. It shows the selected settings page. |
 | **TV settings** | The Settings Window page opened by selecting the TV item in the Settings Sidebar. |
+| **Settings page** | A named page in the Settings Main Pane. Use **TV settings** for the current page; do not call a main-window view a settings page. |
 | **TV Selection Table** | The table in TV settings that lists Saved TVs and TVs found by the latest discovery scan, each with a radio button. Hide it when there are no rows. |
 | **Discovered TV** | A TV found on the local network that has not yet been saved as a trusted TV. |
 | **Discover TVs** | The action that searches the local network for compatible TVs. Use this verb label for the discovery button. |
@@ -41,6 +41,8 @@ here before using it elsewhere.
 | Term | Meaning and usage |
 | --- | --- |
 | **Power Toggle** | A control that requests a power toggle. Do not describe it as a confirmed power state or as Power Off. |
+| **Wake** | A dedicated Wake-on-LAN control. It sends one wake attempt for the selected TV's configured active MAC and completes only when the paired remote channel becomes usable. |
+| **Wake Steps** | The persistent, non-interactive Power View component that shows Wake configuration, magic-packet, reconnection, and remote-ready progress. |
 | **Directional Pad** | The grouped Up, Left, Right, and Down controls arranged around Enter. |
 | **Up**, **Left**, **Right**, **Down** | Directional Pad actions. |
 | **Enter** | The center Directional Pad action. It confirms or selects the focused TV item; do not label it Select or OK in the GUI. |
@@ -80,8 +82,6 @@ apply to the main window; opening Settings also works from the Settings Window.
 | **Apps View** | ⌘3 |
 | **Text Input View** | ⌘4 |
 | Open **Settings Window** | ⌘, |
-| Increase **Global Messages Pane** height | ⌘⇧↑ |
-| Decrease **Global Messages Pane** height | ⌘⇧↓ |
 
 **Power Toggle** and **Volume Slider** have no keyboard shortcut in this
 milestone.
@@ -109,6 +109,9 @@ milestone.
   separate facts.
 - Use **Settings Sidebar** and **Settings Main Pane** only for the Settings
   Window. Use **Sidebar** and **Main Pane** for the main app window.
+- Use **Settings button** for the main-window icon control and **Settings
+  Window** for the separate window. Do not call the icon control “Main
+  Toolbar” or add its shortcut to its visible label.
 - Interview the owner before adding or changing any keyboard shortcut. Record
   the approved action and key pair in this document before implementation.
 

@@ -1,6 +1,7 @@
-use crate::domain::{DeviceDisplay, DeviceId, RemoteAction};
+use crate::domain::{DeviceDisplay, DeviceId};
 
 use super::tv_address::TvHost;
+use super::wake::WakeConfiguration;
 
 /// Non-secret saved TV information. Credentials and certificate trust have
 /// separate stores, both keyed by this generated local record ID.
@@ -9,7 +10,7 @@ pub struct SavedDevice {
     pub id: DeviceId,
     pub label: String,
     pub host: TvHost,
-    pub verified_actions: Vec<RemoteAction>,
+    pub wake: WakeConfiguration,
 }
 
 impl SavedDevice {

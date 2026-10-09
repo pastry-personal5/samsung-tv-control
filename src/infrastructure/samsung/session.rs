@@ -593,7 +593,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fake_writer_distinguishes_flushed_ambiguous_and_unsent_clicks() {
+    async fn fake_writer_distinguishes_flushed_and_ambiguous_clicks() {
         let mut writer = FakeWriter {
             frames: Vec::new(),
             flush_pending: false,
@@ -618,6 +618,7 @@ mod tests {
         );
         assert_eq!(writer.frames.len(), 2);
 
+        writer.flush_pending = false;
         assert_eq!(
             write_click(
                 &mut writer,
@@ -626,9 +627,9 @@ mod tests {
                 Duration::from_millis(1),
             )
             .await,
-            SessionEvent::NotSent(id)
+            SessionEvent::Written(id)
         );
-        assert_eq!(writer.frames.len(), 2);
+        assert_eq!(writer.frames.len(), 3);
     }
 
     #[tokio::test]

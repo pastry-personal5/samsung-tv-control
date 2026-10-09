@@ -1,9 +1,13 @@
 use super::view_model::PrimaryView;
 use crate::application::tv_address::TvHost;
-use crate::application::tv_control_coordinator::{ConnectFlowError, PairFlowError, SessionPackage};
+use crate::application::tv_control_coordinator::{
+    ConnectFlowError, PairFlowError, SessionPackage, WakeFailure,
+};
 use crate::application::tv_discovery::DiscoveryError;
 use crate::application::tv_session::{ProbeObservation, TvSessionError, TvSessionEvent};
 use crate::application::tv_setup_service::ForgetResult;
+use crate::application::wake::WakeInterface;
+use crate::application::wake_transport::WakeSendError;
 use crate::application::SendRemoteAction;
 use crate::domain::DeviceId;
 use crate::domain::RemoteAction;
@@ -27,6 +31,32 @@ pub enum Message {
     },
     /// Typed remote action intent; disabled controls never emit it.
     AttemptRemoteAction(SendRemoteAction),
+    PowerToggle(SendRemoteAction),
+    Wake,
+    CancelWake,
+    WakeTick,
+    PowerProbeFinished {
+        attempt: u64,
+        generation: u64,
+        result: Result<SessionPackage, ConnectFlowError>,
+    },
+    WakeSent {
+        attempt: u64,
+        generation: u64,
+        device: DeviceId,
+        result: Result<(), WakeSendError>,
+    },
+    WakeReconnected {
+        attempt: u64,
+        generation: u64,
+        device: DeviceId,
+        result: Result<SessionPackage, WakeFailure>,
+    },
+    WakeWiredChanged(String),
+    WakeWifiChanged(String),
+    WakeInterfaceSelected(WakeInterface),
+    WakeInterfaceCleared,
+    SaveWakeConfiguration,
     TvAddressChanged(String),
     DiscoverTv,
     DiscoveryFinished {
@@ -60,10 +90,6 @@ pub enum Message {
         result: ForgetResult,
     },
     SelectSaved(DeviceId),
-    SetActionVerified {
-        action: RemoteAction,
-        verified: bool,
-    },
     SessionEvent {
         generation: u64,
         session_id: u64,
@@ -75,7 +101,5 @@ pub enum Message {
 pub enum Shortcut {
     Navigate(PrimaryView),
     OpenSettings,
-    GrowMessages,
-    ShrinkMessages,
     Remote(RemoteAction),
 }

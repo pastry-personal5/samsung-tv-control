@@ -1,9 +1,10 @@
-use crate::domain::{DeviceId, RemoteAction};
+use crate::domain::DeviceId;
 
 use super::certificate_trust::{CertificatePin, CertificateTrustStore, TrustError, TrustRecord};
 use super::credential_store::{CredentialStore, PairingToken, SecretError};
 use super::device_repository::{DeviceRepository, RepositoryError, SavedDevice};
 use super::tv_address::TvHost;
+use super::wake::WakeConfiguration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetupError {
@@ -73,12 +74,11 @@ pub trait TvSetupPort: Send + Sync {
     ) -> Result<SavedDevice, SetupError>;
     fn reconnect_material(&self, id: DeviceId) -> Result<ReconnectMaterial, ReconnectError>;
     fn save_rotated_token(&self, id: DeviceId, token: &PairingToken) -> Result<(), SecretError>;
-    fn set_action_verified(
+    fn save_wake_configuration(
         &self,
         id: DeviceId,
-        action: RemoteAction,
-        verified: bool,
-    ) -> Result<Vec<RemoteAction>, RepositoryError>;
+        wake: WakeConfiguration,
+    ) -> Result<SavedDevice, RepositoryError>;
     fn forget(&self, id: DeviceId) -> ForgetResult;
 }
 
@@ -129,13 +129,12 @@ where
         Self::save_rotated_token(self, id, token)
     }
 
-    fn set_action_verified(
+    fn save_wake_configuration(
         &self,
         id: DeviceId,
-        action: RemoteAction,
-        verified: bool,
-    ) -> Result<Vec<RemoteAction>, RepositoryError> {
-        Self::set_action_verified(self, id, action, verified)
+        wake: WakeConfiguration,
+    ) -> Result<SavedDevice, RepositoryError> {
+        Self::save_wake_configuration(self, id, wake)
     }
 
     fn forget(&self, id: DeviceId) -> ForgetResult {
@@ -197,7 +196,7 @@ impl<R: DeviceRepository, S: CredentialStore, T: CertificateTrustStore> TvSetupS
             id: DeviceId::generate(),
             label: label.to_owned(),
             host: host.clone(),
-            verified_actions: Vec::new(),
+            wake: WakeConfiguration::default(),
         };
         // Keep the prior selected TV until all new records are saved. A failed
         // Keychain write must never create an active paired record.
@@ -246,19 +245,10 @@ impl<R: DeviceRepository, S: CredentialStore, T: CertificateTrustStore> TvSetupS
             .into_iter()
             .find(|device| device.id == id)
             .ok_or(SetupError::Preferences(RepositoryError::Corrupt))?;
-        let old_host = device.host.clone();
         let old_trust = self.trust.load(id).map_err(SetupError::Trust)?;
         let old_token = self.secrets.load(id).map_err(SetupError::Credential)?;
-        let changed_identity = old_host != host
-            || old_trust
-                .as_ref()
-                .is_none_or(|record| record.host != host || record.pin != pin);
         device.label = label.to_owned();
         device.host = host.clone();
-        if changed_identity {
-            device.verified_actions.clear();
-        }
-
         self.secrets
             .save(id, &token)
             .map_err(SetupError::Credential)?;
@@ -336,13 +326,12 @@ impl<R: DeviceRepository, S: CredentialStore, T: CertificateTrustStore> TvSetupS
         self.secrets.save(id, token)
     }
 
-    pub fn set_action_verified(
+    pub fn save_wake_configuration(
         &self,
         id: DeviceId,
-        action: RemoteAction,
-        verified: bool,
-    ) -> Result<Vec<RemoteAction>, RepositoryError> {
-        if action.is_deferred() {
+        wake: WakeConfiguration,
+    ) -> Result<SavedDevice, RepositoryError> {
+        if wake.active.is_some() && wake.active_mac().is_none() {
             return Err(RepositoryError::Corrupt);
         }
         let mut device = self
@@ -351,14 +340,9 @@ impl<R: DeviceRepository, S: CredentialStore, T: CertificateTrustStore> TvSetupS
             .into_iter()
             .find(|device| device.id == id)
             .ok_or(RepositoryError::Corrupt)?;
-        device
-            .verified_actions
-            .retain(|candidate| *candidate != action);
-        if verified {
-            device.verified_actions.push(action);
-        }
+        device.wake = wake;
         self.devices.save(&device)?;
-        Ok(device.verified_actions)
+        Ok(device)
     }
 
     pub fn forget(&self, id: DeviceId) -> ForgetResult {
@@ -589,13 +573,10 @@ mod tests {
     }
 
     #[test]
-    fn repair_keeps_record_id_and_resets_verified_keys_when_identity_changes() {
+    fn repair_keeps_record_id_when_identity_changes() {
         let fake = Fake::default();
         let service = service(&fake);
         let first = commit(&service).unwrap();
-        service
-            .set_action_verified(first.id, RemoteAction::Up, true)
-            .unwrap();
         let repaired = service
             .repair(
                 first.id,
@@ -606,7 +587,6 @@ mod tests {
             )
             .unwrap();
         assert_eq!(repaired.id, first.id);
-        assert!(repaired.verified_actions.is_empty());
         assert_eq!(fake.0.borrow().selected, Some(first.id));
         assert_eq!(
             service.reconnect_material(first.id).unwrap().device.host,
@@ -705,13 +685,10 @@ mod tests {
     }
 
     #[test]
-    fn repair_same_identity_preserves_verified_actions() {
+    fn repair_same_identity_preserves_the_saved_record() {
         let fake = Fake::default();
         let service = service(&fake);
         let device = commit(&service).unwrap();
-        service
-            .set_action_verified(device.id, RemoteAction::Up, true)
-            .unwrap();
         let repaired = service
             .repair(
                 device.id,
@@ -721,7 +698,6 @@ mod tests {
                 PairingToken::from_stored("rotated-token".to_owned()).unwrap(),
             )
             .unwrap();
-        assert_eq!(repaired.verified_actions, vec![RemoteAction::Up]);
         assert_eq!(repaired.label, "Renamed TV");
         assert_eq!(
             service

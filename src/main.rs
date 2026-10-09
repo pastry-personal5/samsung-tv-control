@@ -8,6 +8,7 @@ use samsung_tv_remote::infrastructure::preferences::{
 };
 use samsung_tv_remote::infrastructure::samsung::session::SamsungGateway;
 use samsung_tv_remote::infrastructure::ssdp_discovery::SsdpDiscovery;
+use samsung_tv_remote::infrastructure::wake_udp::UdpWakeTransport;
 use samsung_tv_remote::presentation::iced::app;
 
 fn main() -> iced::Result {
@@ -22,5 +23,6 @@ fn main() -> iced::Result {
         setup,
         Arc::new(SsdpDiscovery),
         Arc::new(SamsungGateway),
+        Arc::new(UdpWakeTransport),
     ))
 }

@@ -10,13 +10,12 @@ behavior and hierarchy specification, not a pixel mockup. See the canonical
 
 The main app window has two main parts:
 
-- **Sidebar** on the left. It contains **Remote**, **Sources**, **Apps**, and
+- **Sidebar** on the left. It contains **Power**, **Remote**, **Sources**, **Apps**, and
   **Text Input**, so the user can return to the startup view after navigating.
-  The **Main Toolbar** is anchored at the bottom of the Sidebar and contains
-  the **Settings button**.
-- **Main Pane** on the right. It opens to the **Remote View**. Clicking Sources,
-  Apps, or Text Input replaces the Main Pane's primary view with **Sources
-  View**, **Apps View**, or **Text Input View** respectively.
+  The icon-only **Settings button** is anchored at the bottom of the Sidebar.
+- **Main Pane** on the right. It opens to the **Remote View**. Clicking Power,
+  Sources, Apps, or Text Input replaces the Main Pane's primary view with
+  **Power View**, **Sources View**, **Apps View**, or **Text Input View** respectively.
 
 The **Settings button** opens a separate **Settings Window**. That window has
 its own **Settings Sidebar** and **Settings Main Pane**. The first Settings
@@ -27,12 +26,11 @@ TBD.
 ```text
 ┌─────────────────────┬─────────────────────────────────────┐
 │ Sidebar             │ Main Pane: Remote View              │
+│ Power               │                                     │
 │ Remote              │                                     │
 │ Sources             │                                     │
 │ Apps                │                                     │
 │ Text Input          │                                     │
-│                     │ TV name · Pairing · Connection      │
-│                     │ Request feedback / recovery action  │
 │                     │              Power Toggle           │
 │                     │                                     │
 │                     │                  Up                 │
@@ -44,12 +42,11 @@ TBD.
 │                     │          Volume Slider              │
 │                     │      Mute   Volume Down   Volume Up  │
 │                     ├─────────────────────────────────────┤
+│                     │ ↕ Messages split bar                │
+│                     ├─────────────────────────────────────┤
 │                     │ Global Messages Pane                │
-│                     │   older messages                    │
-│                     │   newest message at bottom          │
-├─────────────────────┼─────────────────────────────────────┤
-│ Main Toolbar        │ Activity View                       │
-│ [Settings]          │   recent outcomes / Connection      │
+│                     │ Info    concise user message        │
+│                     │ Warning concise user message        │
 └─────────────────────┴─────────────────────────────────────┘
 
 Settings Window
@@ -67,18 +64,17 @@ Settings Window
 The sketch communicates order and grouping only. It does not set control
 dimensions, spacing, colors, icons, or final window size. A draggable split bar
 between the primary view and Global Messages Pane adjusts the latter's height.
-The Sidebar items replace only the primary view; the Global Messages Pane and
-Activity View remain in the Main Pane below it.
+The Sidebar items replace only the primary view; the Global Messages Pane
+remains in the Main Pane below it.
 
 ## Main Pane navigation
 
-**Remote** returns to Remote View. **Sources** opens Sources View, **Apps**
+**Power** opens Power View. **Remote** returns to Remote View. **Sources** opens Sources View, **Apps**
 opens Apps View, and **Text Input** opens Text Input View. Each view targets the
 current Selected TV and uses the
-same Pairing, Connection, capability, request feedback, Global Messages Pane,
-and Activity View as Remote View. Changing views does not switch TVs or open a
-second Connection. Keep the Settings button in the Main Toolbar available from
-all views.
+same Pairing, Connection, capability, request feedback, and Global Messages
+Pane as Remote View. Changing views does not switch TVs or open a second
+Connection. Keep the Settings button available from all views.
 
 Sources View presents supported source choices from the Selected TV and the
 TV's source chooser when direct choices are unavailable. Report a source
@@ -90,18 +86,30 @@ whether TV text input is available or requires the user to focus a TV field,
 provides a draft and Send action when allowed, and preserves uncertain text in
 memory with an explicit warning. It must never persist or log entered text.
 
-## Remote View hierarchy
+## Power View and Remote View hierarchy
 
-Show a compact Selected TV and status region above the controls. It identifies
-the TV and gives Pairing and Connection separate labels. Below them, show the
-current or most recent relevant request outcome and an actionable recovery
-control when available. The status region must not shift the control order.
+Do not show a persistent Selected TV, Pairing, Connection, or aggregate
+availability status region above the controls. Disabled controls provide a
+specific accessible reason and tooltip; user-relevant outcomes appear in the
+Global Messages Pane. This must not shift the control order.
 
-1. Place **Power Toggle** at the top of the Main Pane.
-2. Below it, place the **Directional Pad** as a cross: **Up** above; **Left**
+Power View places persistent **Wake Steps** above a power-control group with
+**Wake** and **Power Toggle**. Wake Steps shows configuration, magic-packet,
+reconnection, and remote-ready rows. Its indicators are non-interactive and
+its text remains understandable without color or animation. Wake is disabled
+without valid active wake configuration and when the paired remote is already
+connected. Power Toggle sends `KEY_POWER` only through a live paired session.
+
+Remote View keeps **Power Toggle** at the top. With a live paired session, it
+sends the toggle and remains in Remote View. Without a live connection to the
+selected saved TV, it opens Power View, tries a trusted connection, and starts
+Wake if the TV is unreachable and Wake is configured. The disconnected button
+is disabled when no active Wake MAC is configured. Remote View then places:
+
+1. The **Directional Pad** as a cross: **Up** above; **Left**
    and **Right** on either side; **Down** below; **Enter** in the center.
-3. Place **Back** and **Home** side by side below the Directional Pad.
-4. Place the volume controls below Back and Home. Put the **Volume Slider**
+2. **Back** and **Home** side by side below the Directional Pad.
+3. The volume controls below Back and Home. Put the **Volume Slider**
    above a row containing **Mute**, **Volume Down**, and **Volume Up**.
 
 Each visible control sends the same semantic action as its keyboard equivalent
@@ -116,9 +124,9 @@ color alone must not carry the reason.
 - **First launch:** show the main app window in the Remote View. Do not
   automatically open the Settings Window, display onboarding, or insert a
   setup prompt. Use the standard Remote View layout with disabled remote
-  controls and a short status line such as “No TV selected. Open Settings to
-  choose a TV.” The Settings Window opens when the user clicks Settings in the
-  Main Toolbar.
+  controls. Each disabled control gives an accessible reason such as “No TV
+  selected. Open Settings to choose a TV.” The Settings Window opens when the
+  user clicks the Settings button.
 - **No TVs listed:** hide the TV Selection Table and show **Discover TVs**
   centered both horizontally and vertically in the Settings Main Pane.
   Clicking Discover TVs searches the local network.
@@ -181,42 +189,41 @@ and do not mark it Saved or Selected until both finish successfully. A stale
 scan result must not overwrite a newer TV selection. The Settings button stays
 available when remote controls are disabled.
 
-Power Toggle requests a toggle; it does not assert that the TV is now on or
-off. Use the action outcome and observed TV state separately.
+Power Toggle sends a toggle only through a live paired remote channel. When
+disconnected, it checks the trusted connection briefly and may start Wake;
+neither path asserts that the TV is now on or off. Wake's local packet-send
+result does not assert that the TV woke. Use each action outcome and observed
+TV state separately.
 
-## Global messages and activity
+## Global messages
 
-The **Global Messages Pane** and separate **Activity View** are always visible
-below the current primary view, in that order. The Global Messages Pane starts
-about eight text lines high. Render its text in a small, readable font and allow the
-user to resize its height with the split bar. Keep a minimum usable height for
-the Remote View and Activity View; if the window is short, scroll the Remote
-View rather than shrink or overlap controls. The split bar is keyboard
-operable and has an accessible name and current size.
+The **Global Messages Pane** is always visible below the current primary view.
+It starts about eight text lines high. Render it in a small, readable font and
+allow the user to resize its height with the **Messages split bar**. Keep a
+minimum usable height for the Remote View; if the window is short, scroll the
+Remote View rather than shrink or overlap controls. The split bar is pointer
+draggable and has an accessible name and current size.
 
 The Global Messages Pane shows user-relevant messages from all app windows,
 including discovery, Pairing, and Connection results from the Settings Window.
-Append messages chronologically, newest at the bottom. When the user is at the
-bottom, follow new messages; when the user scrolls upward, preserve their
-position and show a new-message indicator instead of forcing a jump. Show time,
-source, and severity in an accessible way, without relying only on color. Keep
-the message feed in memory for the current app session; cap its size and remove
+Append messages chronologically, newest at the bottom, and provide a vertical
+scroll bar when they overflow. When the user is at the bottom, follow new
+messages; when the user scrolls upward, preserve their position and show a
+new-message indicator instead of forcing a jump. Each row has a fixed-width
+severity column and a message-content column. Severity uses its label and
+semantic colour, while content is concise user-facing text; do not render
+sequence numbers, source bookkeeping, or an idle follow-state label. Keep the
+message feed in memory for the current app session; cap its size and remove
 oldest entries first. Never include credentials, entered text, network
 addresses, or raw payloads. A Settings Window operation can also show a short
 local status, but the user-relevant message goes to this shared pane.
 
-The Activity View shows a structured, time-ordered list of recent request
-outcomes and Connection events from the current session. Include the operation,
-Selected TV label, outcome, and time. It may offer a request reference for
-correlating a Global Messages Pane entry with an activity row. It never treats
-“Sent” as a confirmed TV state. A late outcome from a previously Selected TV
-stays associated with that TV and must not replace the current TV's status.
-Both lower regions remain visible even when there is no activity; use a quiet
-empty state in each.
+## Visual decisions
 
-## Deferred visual decisions
-
-Typography, colors, control dimensions, iconography, window sizing, responsive
-breakpoints, animation, and final accessibility copy remain for visual design
-and implementation. Preserve clear focus indication, keyboard access, and
-accessible names for every control when those details are designed.
+Use an always-dark graphite interface, blue interaction accents, and semantic
+green, amber, and red status styling with text equivalents. The main window
+minimum size is 1100 x 760; the Settings Window minimum is 1000 x 660. P1-M14
+groups Remote View into high-contrast control cards and TV Settings into
+selected-TV, pairing/connection, Wake-setup, and guidance cards. Preserve
+clear focus indication, keyboard access, and accessible names for every
+control.
