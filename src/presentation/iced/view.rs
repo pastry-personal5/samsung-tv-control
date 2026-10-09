@@ -1,4 +1,5 @@
 use super::icons::Icon;
+use super::remote_image::RemoteImage;
 use super::split_bar::SplitBar;
 use super::ui_message::{Message, SettingsPage};
 use super::view_model::{feed_is_at_bottom, PrimaryView, RemoteControlViewState, ViewModel};
@@ -17,6 +18,8 @@ const SIDEBAR_SLOT_HEIGHT: f32 = 58.0;
 const VIEW_BOX_WIDTH: f32 = 660.0;
 const TAB_TITLE_SIZE: u32 = 14;
 const WAKE_STEP_MARKER_WIDTH: f32 = 16.0;
+const SETTINGS_SIDEBAR_WIDTH: f32 = 186.0;
+const SETTINGS_SIDEBAR_ITEM_HEIGHT: f32 = 52.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WakeChoice {
@@ -61,6 +64,37 @@ fn sidebar_button_style(selected: bool, _: &Theme, status: button::Status) -> bu
             },
             ..Border::default()
         },
+        ..button::Style::default()
+    }
+}
+
+fn settings_sidebar_color() -> Color {
+    Color::from_rgb8(32, 39, 46)
+}
+
+fn settings_sidebar_button_style(
+    selected: bool,
+    _: &Theme,
+    status: button::Status,
+) -> button::Style {
+    let background = match (selected, status) {
+        (true, button::Status::Hovered) => Color::from_rgb8(53, 91, 121),
+        (true, button::Status::Pressed) => Color::from_rgb8(39, 72, 100),
+        (true, _) => Color::from_rgb8(45, 78, 105),
+        (false, button::Status::Hovered) => Color::from_rgb8(48, 65, 78),
+        (false, button::Status::Pressed) => Color::from_rgb8(40, 57, 72),
+        _ => settings_sidebar_color(),
+    };
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: if status == button::Status::Disabled {
+            Color::from_rgb8(145, 157, 167)
+        } else if selected {
+            Color::from_rgb8(250, 252, 255)
+        } else {
+            Color::from_rgb8(226, 234, 241)
+        },
+        border: Border::default(),
         ..button::Style::default()
     }
 }
@@ -401,43 +435,14 @@ fn remote_view(
     wake_stage: WakeStage,
     wake_configured: bool,
 ) -> Element<'static, Message> {
-    let directional_pad = column![
-        remote_button("Up", RemoteAction::Up, control_state),
-        row![
-            remote_button("Left", RemoteAction::Left, control_state),
-            remote_button("Enter", RemoteAction::Enter, control_state),
-            remote_button("Right", RemoteAction::Right, control_state)
-        ]
-        .spacing(8),
-        remote_button("Down", RemoteAction::Down, control_state),
-    ]
-    .align_x(Alignment::Center)
-    .spacing(8);
-
     titled_frame(
         "Remote View",
-        column![
-            container(power_toggle_button(
-                control_state,
-                wake_stage,
-                wake_configured,
-                false,
-            ))
-            .center_x(Length::Fill),
-            container(directional_pad).center_x(Length::Fill),
-            container(
-                row![
-                    remote_button("Back", RemoteAction::Back, control_state),
-                    remote_button("Home", RemoteAction::Home, control_state),
-                    remote_button("Mute", RemoteAction::Mute, control_state),
-                    remote_button("Volume Down", RemoteAction::VolumeDown, control_state),
-                    remote_button("Volume Up", RemoteAction::VolumeUp, control_state)
-                ]
-                .spacing(8),
-            )
-            .center_x(Length::Fill),
-        ]
-        .spacing(14)
+        container(RemoteImage::view(
+            control_state,
+            wake_stage,
+            wake_configured,
+        ))
+        .center_x(Length::Fill)
         .into(),
         None,
     )
@@ -725,51 +730,6 @@ fn wake_step(
     .into()
 }
 
-fn remote_button(
-    label: &'static str,
-    action: RemoteAction,
-    control_state: &RemoteControlViewState,
-) -> Element<'static, Message> {
-    let enabled_device = control_state
-        .selected_device
-        .as_ref()
-        .filter(|_| control_state.action_disabled_reason(action).is_none());
-    tooltip(
-        action_button(action_icon(action), label, false, enabled_device.is_some())
-            .height(48)
-            .width(Length::Fixed(56.0))
-            .on_press_maybe(enabled_device.map(|device| {
-                Message::AttemptRemoteAction(SendRemoteAction::new(
-                    device.id(),
-                    control_state.selection_generation,
-                    action,
-                ))
-            })),
-        control_state
-            .action_disabled_reason(action)
-            .unwrap_or(label),
-        tooltip::Position::Top,
-    )
-    .style(tooltip_style)
-    .into()
-}
-
-fn action_icon(action: RemoteAction) -> Icon {
-    match action {
-        RemoteAction::PowerToggle => Icon::Power,
-        RemoteAction::Up => Icon::Up,
-        RemoteAction::Down => Icon::Down,
-        RemoteAction::Left => Icon::Left,
-        RemoteAction::Right => Icon::Right,
-        RemoteAction::Enter => Icon::Enter,
-        RemoteAction::Back => Icon::Back,
-        RemoteAction::Home => Icon::Home,
-        RemoteAction::Mute => Icon::Mute,
-        RemoteAction::VolumeDown => Icon::VolumeDown,
-        RemoteAction::VolumeUp => Icon::VolumeUp,
-    }
-}
-
 fn action_button(
     icon: Icon,
     label: &'static str,
@@ -876,6 +836,7 @@ pub struct SettingsView<'a> {
     pub fingerprint: Option<String>,
     pub observed_name: Option<String>,
     pub observed_model: Option<String>,
+    pub observed_host: Option<&'a crate::application::tv_address::TvHost>,
     pub status: &'a str,
     pub selected_id: Option<crate::DeviceId>,
     pub selected_label: Option<&'a str>,
@@ -884,6 +845,36 @@ pub struct SettingsView<'a> {
     pub wake_wired: &'a str,
     pub wake_wifi: &'a str,
     pub wake_active: Option<WakeInterface>,
+}
+
+fn candidate_hosts(
+    discovered: &[crate::application::tv_address::TvHost],
+    saved: &[crate::application::device_repository::SavedDevice],
+    address: &str,
+) -> Vec<crate::application::tv_address::TvHost> {
+    let is_saved = |host: &crate::application::tv_address::TvHost| {
+        saved.iter().any(|device| device.host == *host)
+    };
+    let mut hosts = Vec::new();
+    for host in discovered {
+        if !is_saved(host) && !hosts.contains(host) {
+            hosts.push(host.clone());
+        }
+    }
+    if let Ok(manual) = crate::application::tv_address::TvHost::parse(address) {
+        if !is_saved(&manual) && !hosts.contains(&manual) {
+            hosts.push(manual);
+        }
+    }
+    hosts
+}
+
+fn observed_matches(
+    host: &crate::application::tv_address::TvHost,
+    observed_host: Option<&crate::application::tv_address::TvHost>,
+    has_fingerprint: bool,
+) -> bool {
+    has_fingerprint && observed_host == Some(host)
 }
 
 pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
@@ -895,6 +886,7 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         fingerprint,
         observed_name,
         observed_model,
+        observed_host,
         status,
         selected_id,
         selected_label,
@@ -904,22 +896,43 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         wake_wifi,
         wake_active,
     } = options;
-    let sidebar = column![
-        text("Settings").size(18),
-        button("Discovery")
-            .on_press(Message::SelectSettingsPage(SettingsPage::Discovery))
-            .style(move |theme, status| {
-                sidebar_button_style(settings_page == SettingsPage::Discovery, theme, status)
-            }),
-        button("Wake on LAN")
-            .on_press(Message::SelectSettingsPage(SettingsPage::WakeOnLan))
-            .style(move |theme, status| {
-                sidebar_button_style(settings_page == SettingsPage::WakeOnLan, theme, status)
-            }),
-    ]
-    .padding(16)
-    .spacing(10)
-    .width(170);
+    let settings_item = |label, page| {
+        button(
+            container(text(label).size(15))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_y(Alignment::Center),
+        )
+        .padding([0, 16])
+        .width(Length::Fill)
+        .height(Length::Fixed(SETTINGS_SIDEBAR_ITEM_HEIGHT))
+        .on_press(Message::SelectSettingsPage(page))
+        .style(move |theme, status| {
+            settings_sidebar_button_style(settings_page == page, theme, status)
+        })
+    };
+    let sidebar = container(
+        column![
+            container(
+                text("Settings")
+                    .size(17)
+                    .style(|_| ::iced::widget::text::Style {
+                        color: Some(Color::from_rgb8(183, 196, 207)),
+                    })
+            )
+            .width(Length::Fill)
+            .height(Length::Fixed(58.0))
+            .padding([0, 16])
+            .align_y(Alignment::Center),
+            settings_item("Discovery", SettingsPage::Discovery),
+            settings_item("Wake on LAN", SettingsPage::WakeOnLan),
+        ]
+        .spacing(0)
+        .width(Length::Fill),
+    )
+    .width(Length::Fixed(SETTINGS_SIDEBAR_WIDTH))
+    .height(Length::Fill)
+    .style(|_| container::Style::default().background(settings_sidebar_color()));
 
     let selected = selected_label.unwrap_or("None");
     let has_fingerprint = fingerprint.is_some();
@@ -932,18 +945,43 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
             container(text("Select").size(13)).width(Length::Fixed(48.0)),
             container(text("TV name").size(13)).width(Length::FillPortion(3)),
             container(text("TV IP Address").size(13)).width(Length::FillPortion(2)),
+            container(text("Actions").size(13)).width(Length::Fixed(180.0)),
         ]
         .align_y(Alignment::Center)
         .spacing(8)
         .padding([5, 8]);
         let mut rows = column![header].spacing(2);
         for device in saved_devices {
+            let selected_row = selected_id == Some(device.id);
+            let checked_row = observed_matches(&device.host, observed_host, has_fingerprint);
+            let actions: Element<'_, Message> = if selected_row {
+                row![
+                    button("Check TV")
+                        .on_press_maybe(
+                            (!pairing_pending && !forget_pending)
+                                .then(|| { Message::ProbeCandidate(device.host.clone()) })
+                        )
+                        .style(action_button_style),
+                    button("Re-pair")
+                        .on_press_maybe(
+                            (checked_row && !pairing_pending && !forget_pending)
+                                .then_some(Message::ConfirmAndRepair)
+                        )
+                        .style(action_button_style),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center)
+                .into()
+            } else {
+                Space::new().into()
+            };
             rows = rows.push(
                 row![
                     container(saved_tv_radio(device.id, selected_id, !forget_pending))
                         .width(Length::Fixed(48.0)),
                     container(text(&device.label)).width(Length::FillPortion(3)),
                     container(text(device.host.as_str())).width(Length::FillPortion(2)),
+                    container(actions).width(Length::Fixed(180.0)),
                 ]
                 .align_y(Alignment::Center)
                 .spacing(8)
@@ -958,11 +996,14 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         selected_content = selected_content.push(text("No saved TVs yet.").size(13));
     }
 
+    let candidates = candidate_hosts(candidates, saved_devices, address);
     if !candidates.is_empty() {
         let header = row![
             container(text("Select").size(13)).width(Length::Fixed(48.0)),
-            container(text("TV name").size(13)).width(Length::FillPortion(3)),
-            container(text("TV IP Address").size(13)).width(Length::FillPortion(2)),
+            container(text("TV name").size(13)).width(Length::Fixed(90.0)),
+            container(text("TV IP Address").size(13)).width(Length::Fixed(128.0)),
+            container(text("Observed TV").size(13)).width(Length::Fill),
+            container(text("Actions").size(13)).width(Length::Fixed(180.0)),
         ]
         .align_y(Alignment::Center)
         .spacing(8)
@@ -973,6 +1014,25 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         let mut rows = column![header].spacing(2);
         for (index, candidate) in candidates.iter().enumerate() {
             let target = candidate.clone();
+            let checked_row = observed_matches(candidate, observed_host, has_fingerprint);
+            let details: Element<'_, Message> = if checked_row {
+                column![
+                    text(format!(
+                        "Name: {}",
+                        observed_name.as_deref().unwrap_or("Unavailable")
+                    ))
+                    .size(12),
+                    text(format!(
+                        "Model: {}",
+                        observed_model.as_deref().unwrap_or("Unavailable")
+                    ))
+                    .size(12),
+                ]
+                .spacing(2)
+                .into()
+            } else {
+                text("Not checked").size(12).into()
+            };
             rows = rows.push(
                 row![
                     container(
@@ -982,8 +1042,28 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                         .size(18),
                     )
                     .width(Length::Fixed(48.0)),
-                    container(text("Candidate")).width(Length::FillPortion(3)),
-                    container(text(candidate.as_str())).width(Length::FillPortion(2)),
+                    container(text("Candidate")).width(Length::Fixed(90.0)),
+                    container(text(candidate.as_str().to_owned())).width(Length::Fixed(128.0)),
+                    container(details).width(Length::Fill),
+                    container(
+                        row![
+                            button("Check TV")
+                                .on_press_maybe(
+                                    (!pairing_pending && !forget_pending)
+                                        .then(|| { Message::ProbeCandidate(candidate.clone()) })
+                                )
+                                .style(action_button_style),
+                            button("Pair")
+                                .on_press_maybe(
+                                    (checked_row && !pairing_pending && !forget_pending)
+                                        .then_some(Message::ConfirmAndPair)
+                                )
+                                .style(action_button_style),
+                        ]
+                        .spacing(6)
+                        .align_y(Alignment::Center),
+                    )
+                    .width(Length::Fixed(180.0)),
                 ]
                 .align_y(Alignment::Center)
                 .spacing(8)
@@ -1008,23 +1088,8 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                 .on_input(Message::TvAddressChanged)
                 .on_submit(Message::ProbeTv),
         )
-            .push(button("Probe Secure TV (8002)").on_press(Message::ProbeTv).style(action_button_style))
             .push(text(fingerprint_text).size(12))
-            .push(text(format!(
-                "Observed name: {}",
-                observed_name.unwrap_or_else(|| "Unavailable".to_owned())
-            )))
-            .push(text(format!(
-                "Observed model: {}",
-                observed_model.unwrap_or_else(|| "Unavailable".to_owned())
-            )))
-            .push(text("Confirm the address and certificate on the intended TV. Approve the matching TV prompt."))
-            .push(button("Confirm TV and Pair").on_press_maybe(
-                if has_fingerprint && !pairing_pending && !forget_pending { Some(Message::ConfirmAndPair) } else { None }
-            ).style(action_button_style))
-            .push(button("Re-pair Selected TV").on_press_maybe(
-                if has_fingerprint && selected_label.is_some() && !pairing_pending && !forget_pending { Some(Message::ConfirmAndRepair) } else { None }
-            ).style(action_button_style));
+            .push(text("Check the intended TV, confirm its address and certificate, then approve the pairing prompt on the TV."));
 
     let connection_content = column![
         text("Retry the trusted remote connection or forget this TV and its stored pairing.")
@@ -1079,7 +1144,7 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
 
     let main_content: Element<'_, Message> = match settings_page {
         SettingsPage::Discovery => column![
-            text("TV Settings").size(26),
+            text("Discovery").size(26),
             card("TV List", selected_content),
             card("Discovery and Pairing", pairing_content),
             card("Connection recovery", connection_content),
@@ -1108,6 +1173,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn candidate_rows_omit_saved_tvs_and_keep_a_manual_target() {
+        use crate::application::device_repository::SavedDevice;
+        use crate::application::tv_address::TvHost;
+
+        let saved_host = TvHost::parse("192.168.1.10").unwrap();
+        let new_host = TvHost::parse("192.168.1.11").unwrap();
+        let manual_host = TvHost::parse("192.168.1.12").unwrap();
+        let saved = [SavedDevice {
+            id: crate::DeviceId::new(1),
+            label: "Living Room".to_owned(),
+            host: saved_host.clone(),
+            wake: crate::application::wake::WakeConfiguration::default(),
+        }];
+
+        assert_eq!(
+            candidate_hosts(
+                &[saved_host, new_host.clone(), new_host.clone(),],
+                &saved,
+                manual_host.as_str(),
+            ),
+            vec![new_host, manual_host]
+        );
+    }
+
+    #[test]
+    fn only_the_checked_tv_can_offer_pairing() {
+        use crate::application::tv_address::TvHost;
+
+        let checked = TvHost::parse("192.168.1.10").unwrap();
+        let other = TvHost::parse("192.168.1.11").unwrap();
+        assert!(observed_matches(&checked, Some(&checked), true));
+        assert!(!observed_matches(&other, Some(&checked), true));
+        assert!(!observed_matches(&checked, Some(&checked), false));
+        assert!(!observed_matches(&checked, None, true));
+    }
+
+    #[test]
     fn sidebar_buttons_rest_on_the_rail_and_distinguish_hover_from_selection() {
         let resting = sidebar_button_style(false, &Theme::Dark, button::Status::Active);
         let hovered = sidebar_button_style(false, &Theme::Dark, button::Status::Hovered);
@@ -1117,6 +1219,39 @@ mod tests {
         assert_ne!(hovered.background, resting.background);
         assert_ne!(selected.background, resting.background);
         assert_eq!(selected.border.width, 2.0);
+    }
+
+    #[test]
+    fn settings_sidebar_labels_keep_readable_contrast_in_every_state() {
+        fn luminance(color: Color) -> f32 {
+            let linear = |value: f32| {
+                if value <= 0.04045 {
+                    value / 12.92
+                } else {
+                    ((value + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b)
+        }
+
+        for selected in [false, true] {
+            for status in [
+                button::Status::Active,
+                button::Status::Hovered,
+                button::Status::Pressed,
+            ] {
+                let style = settings_sidebar_button_style(selected, &Theme::Dark, status);
+                let Some(Background::Color(background)) = style.background else {
+                    panic!("sidebar items need a solid background");
+                };
+                let foreground = luminance(style.text_color);
+                let background = luminance(background);
+                let contrast =
+                    (foreground.max(background) + 0.05) / (foreground.min(background) + 0.05);
+                assert!(contrast >= 4.5, "insufficient sidebar label contrast");
+                assert_eq!(style.border.width, 0.0);
+            }
+        }
     }
 
     #[test]

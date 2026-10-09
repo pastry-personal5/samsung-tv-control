@@ -11,18 +11,19 @@ fn remote_action_covers_every_rendered_button_intent() {
         RemoteAction::Enter,
         RemoteAction::Back,
         RemoteAction::Home,
+        RemoteAction::PlayPause,
         RemoteAction::Mute,
         RemoteAction::VolumeUp,
         RemoteAction::VolumeDown,
     ];
 
-    assert_eq!(actions.len(), 11);
+    assert_eq!(actions.len(), 12);
     assert_eq!(
         actions
             .iter()
             .collect::<std::collections::HashSet<_>>()
             .len(),
-        11
+        12
     );
 }
 

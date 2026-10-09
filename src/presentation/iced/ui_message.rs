@@ -71,6 +71,7 @@ pub enum Message {
         result: Result<Vec<TvHost>, DiscoveryError>,
     },
     UseCandidate(TvHost),
+    ProbeCandidate(TvHost),
     ProbeTv,
     ProbeFinished {
         attempt: u64,

@@ -237,12 +237,23 @@ impl App {
                 }
                 let severity = match result {
                     Ok(candidates) => {
+                        let new_count = candidates
+                            .iter()
+                            .filter(|host| {
+                                !self
+                                    .coordinator
+                                    .saved_devices
+                                    .iter()
+                                    .any(|device| device.host == **host)
+                            })
+                            .count();
                         self.settings_status = if candidates.is_empty() {
                             "No TV advertisements found. Enter the TV address manually.".to_owned()
+                        } else if new_count == 0 {
+                            "All discovered TVs are already saved.".to_owned()
                         } else {
                             format!(
-                                "{} unconfirmed Samsung candidate(s) found. Choose one to probe.",
-                                candidates.len()
+                                "{new_count} new TV candidate(s) found. Check a TV before pairing."
                             )
                         };
                         super::view_model::MessageSeverity::Information
@@ -285,7 +296,12 @@ impl App {
                     }
                 }
                 self.tv_address = host.as_str().to_owned();
-                self.update(Message::ProbeTv)
+                self.coordinator.address_changed();
+                Task::none()
+            }
+            Message::ProbeCandidate(host) => {
+                self.tv_address = host.as_str().to_owned();
+                self.probe_tv()
             }
             Message::ProbeTv => self.probe_tv(),
             Message::ProbeFinished {
@@ -317,7 +333,19 @@ impl App {
             }
             Message::ConfirmAndPair => self.confirm_and_pair(None),
             Message::ConfirmAndRepair => {
-                self.confirm_and_pair(self.coordinator.app_state.selected_device())
+                let selected_id = self.coordinator.app_state.selected_device();
+                let selected_host = self
+                    .coordinator
+                    .saved_devices
+                    .iter()
+                    .find(|device| Some(device.id) == selected_id)
+                    .map(|device| &device.host);
+                let observed_host = self.coordinator.observed.as_ref().map(|(host, _)| host);
+                if selected_host.is_none() || selected_host != observed_host {
+                    self.settings_status = "Check the selected TV before re-pairing.".to_owned();
+                    return Task::none();
+                }
+                self.confirm_and_pair(selected_id)
             }
             Message::PairFinished {
                 attempt,
@@ -385,6 +413,7 @@ impl App {
                 self.view_model
                     .update_control_state(&self.coordinator.app_state);
                 self.tv_address = device.host.as_str().to_owned();
+                self.coordinator.address_changed();
                 self.load_wake_draft(&device);
                 if let Some(wake) = staged_wake {
                     self.load_wake_configuration(&wake);
@@ -924,6 +953,7 @@ impl App {
                     .observed
                     .as_ref()
                     .and_then(|(_, observation)| observation.model.clone()),
+                observed_host: self.coordinator.observed.as_ref().map(|(host, _)| host),
                 status: &self.settings_status,
                 selected_id: self.coordinator.app_state.selected_device(),
                 selected_label: self
@@ -1431,6 +1461,30 @@ mod tests {
         assert_eq!(app.coordinator.app_state.selected_device(), Some(device.id));
         assert_eq!(saved.wake.active, Some(WakeInterface::Wired));
         assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[test]
+    fn re_pair_rejects_an_observation_from_a_different_tv() {
+        let device = saved_device(crate::DeviceId::new(23));
+        let (mut app, _) = App::new();
+        app.coordinator.app_state.select_device(device.display());
+        app.coordinator.saved_devices.push(device);
+        app.coordinator.observed = Some((
+            TvHost::parse("other.local").unwrap(),
+            crate::application::tv_session::ProbeObservation {
+                pin: CertificatePin::from_der(b"other TV certificate"),
+                name: Some("Other TV".to_owned()),
+                model: None,
+            },
+        ));
+
+        let _ = app.update(Message::ConfirmAndRepair);
+
+        assert_eq!(
+            app.settings_status,
+            "Check the selected TV before re-pairing."
+        );
+        assert!(!app.coordinator.pair_pending);
     }
 
     #[tokio::test]

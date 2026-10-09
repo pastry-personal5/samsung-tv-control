@@ -14,19 +14,9 @@ pub enum Icon {
     Wake,
     Retry,
     Cancel,
-    Up,
-    Down,
-    Left,
-    Right,
-    Enter,
-    Back,
-    Home,
-    Mute,
-    VolumeDown,
-    VolumeUp,
 }
 
-const ARTWORK: [&[u8]; 19] = [
+const ARTWORK: [&[u8]; 9] = [
     include_bytes!("../../../assets/icons/power.png"),
     include_bytes!("../../../assets/icons/remote.png"),
     include_bytes!("../../../assets/icons/sources.png"),
@@ -36,16 +26,6 @@ const ARTWORK: [&[u8]; 19] = [
     include_bytes!("../../../assets/icons/wake.png"),
     include_bytes!("../../../assets/icons/retry.png"),
     include_bytes!("../../../assets/icons/cancel.png"),
-    include_bytes!("../../../assets/icons/up.png"),
-    include_bytes!("../../../assets/icons/down.png"),
-    include_bytes!("../../../assets/icons/left.png"),
-    include_bytes!("../../../assets/icons/right.png"),
-    include_bytes!("../../../assets/icons/enter.png"),
-    include_bytes!("../../../assets/icons/back.png"),
-    include_bytes!("../../../assets/icons/home.png"),
-    include_bytes!("../../../assets/icons/mute.png"),
-    include_bytes!("../../../assets/icons/volume_down.png"),
-    include_bytes!("../../../assets/icons/volume_up.png"),
 ];
 
 static HANDLES: OnceLock<Vec<image::Handle>> = OnceLock::new();
@@ -71,7 +51,7 @@ mod tests {
 
     #[test]
     fn every_icon_is_an_embedded_png() {
-        assert_eq!(ARTWORK.len(), 19);
+        assert_eq!(ARTWORK.len(), 9);
         for bytes in ARTWORK {
             assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
             assert!(bytes.len() > 200);

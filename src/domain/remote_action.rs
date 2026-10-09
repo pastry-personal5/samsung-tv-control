@@ -10,13 +10,14 @@ pub enum RemoteAction {
     Enter,
     Back,
     Home,
+    PlayPause,
     Mute,
     VolumeUp,
     VolumeDown,
 }
 
 impl RemoteAction {
-    pub const LIVE_ACTIONS: [Self; 10] = [
+    pub const LIVE_ACTIONS: [Self; 11] = [
         Self::Up,
         Self::Down,
         Self::Left,
@@ -24,6 +25,7 @@ impl RemoteAction {
         Self::Enter,
         Self::Back,
         Self::Home,
+        Self::PlayPause,
         Self::Mute,
         Self::VolumeUp,
         Self::VolumeDown,

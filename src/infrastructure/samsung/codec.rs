@@ -28,6 +28,8 @@ pub fn encode_click(action: RemoteAction) -> Result<String, CodecError> {
         RemoteAction::Enter => "KEY_ENTER",
         RemoteAction::Back => "KEY_RETURN",
         RemoteAction::Home => "KEY_HOME",
+        // The WebSocket key set exposes Play, but no documented combined Play/Pause key.
+        RemoteAction::PlayPause => "KEY_PLAY",
         RemoteAction::Mute => "KEY_MUTE",
         RemoteAction::VolumeUp => "KEY_VOLUP",
         RemoteAction::VolumeDown => "KEY_VOLDOWN",
@@ -83,6 +85,7 @@ mod tests {
             "KEY_ENTER",
             "KEY_RETURN",
             "KEY_HOME",
+            "KEY_PLAY",
             "KEY_MUTE",
             "KEY_VOLUP",
             "KEY_VOLDOWN",
