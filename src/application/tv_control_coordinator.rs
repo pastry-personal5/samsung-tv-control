@@ -68,6 +68,44 @@ pub struct ActiveRuntime {
 
 type PendingConnection = Option<(SavedDevice, Box<dyn TvConnection>)>;
 
+fn compact_saved_devices(
+    service: &Arc<dyn TvSetupPort>,
+    devices: Vec<SavedDevice>,
+    selected: Option<DeviceId>,
+) -> Vec<SavedDevice> {
+    let mut compacted = Vec::new();
+
+    for device in devices {
+        let Some(existing_index) = compacted
+            .iter()
+            .position(|saved: &SavedDevice| saved.host == device.host)
+        else {
+            compacted.push(device);
+            continue;
+        };
+
+        if compacted[existing_index].id == device.id {
+            continue;
+        }
+
+        let keep_current = selected == Some(device.id);
+        let duplicate_id = if keep_current {
+            compacted[existing_index].id
+        } else {
+            device.id
+        };
+        if service.forget(duplicate_id).record_removed {
+            if keep_current {
+                compacted[existing_index] = device;
+            }
+        } else {
+            compacted.push(device);
+        }
+    }
+
+    compacted
+}
+
 pub struct SessionPackage(Arc<Mutex<PendingConnection>>);
 
 impl SessionPackage {
@@ -437,14 +475,18 @@ impl TvControlCoordinator {
 
     pub fn restore(&mut self) -> Option<RestoreSummary> {
         let service = self.service.as_ref()?;
+        let selected = service.selected_device();
+        let selected_id = selected
+            .as_ref()
+            .ok()
+            .and_then(|device| device.as_ref().map(|device| device.id));
         let list_error = match service.saved_devices() {
             Ok(devices) => {
-                self.saved_devices = devices;
+                self.saved_devices = compact_saved_devices(service, devices, selected_id);
                 false
             }
             Err(_) => true,
         };
-        let selected = service.selected_device();
         if let Ok(Some(device)) = &selected {
             if !self.saved_devices.iter().any(|saved| saved.id == device.id) {
                 self.saved_devices.push(device.clone());
@@ -544,6 +586,12 @@ impl TvControlCoordinator {
             .gateway
             .clone()
             .ok_or(PairStartError::TransportUnavailable)?;
+        let replace = replace.or_else(|| {
+            self.saved_devices
+                .iter()
+                .find(|device| device.host == host)
+                .map(|device| device.id)
+        });
         self.cancel_wake();
         self.bump_pair_attempt();
         self.pair_pending = true;
@@ -1301,6 +1349,98 @@ mod tests {
             host: TvHost::parse("tv.local").unwrap(),
             wake: super::super::wake::WakeConfiguration::default(),
         }
+    }
+
+    #[derive(Clone)]
+    struct DuplicateSetup {
+        devices: Arc<Mutex<Vec<SavedDevice>>>,
+    }
+
+    impl TvSetupPort for DuplicateSetup {
+        fn saved_devices(&self) -> Result<Vec<SavedDevice>, RepositoryError> {
+            Ok(self.devices.lock().unwrap().clone())
+        }
+
+        fn selected_device(&self) -> Result<Option<SavedDevice>, RepositoryError> {
+            Ok(None)
+        }
+
+        fn select_saved(&self, _: DeviceId) -> Result<SavedDevice, RepositoryError> {
+            Err(RepositoryError::Corrupt)
+        }
+
+        fn commit_pairing(
+            &self,
+            _: &str,
+            _: TvHost,
+            _: CertificatePin,
+            _: super::super::credential_store::PairingToken,
+        ) -> Result<SavedDevice, SetupError> {
+            Err(SetupError::Preferences(RepositoryError::Unavailable))
+        }
+
+        fn repair(
+            &self,
+            _: DeviceId,
+            _: &str,
+            _: TvHost,
+            _: CertificatePin,
+            _: super::super::credential_store::PairingToken,
+        ) -> Result<SavedDevice, SetupError> {
+            Err(SetupError::Preferences(RepositoryError::Unavailable))
+        }
+
+        fn reconnect_material(
+            &self,
+            _: DeviceId,
+        ) -> Result<super::super::tv_setup_service::ReconnectMaterial, ReconnectError> {
+            Err(ReconnectError::MissingDevice)
+        }
+
+        fn save_rotated_token(
+            &self,
+            _: DeviceId,
+            _: &super::super::credential_store::PairingToken,
+        ) -> Result<(), super::super::credential_store::SecretError> {
+            Err(super::super::credential_store::SecretError::Unavailable)
+        }
+
+        fn save_wake_configuration(
+            &self,
+            _: DeviceId,
+            _: WakeConfiguration,
+        ) -> Result<SavedDevice, RepositoryError> {
+            Err(RepositoryError::Unavailable)
+        }
+
+        fn forget(&self, id: DeviceId) -> ForgetResult {
+            self.devices
+                .lock()
+                .unwrap()
+                .retain(|device| device.id != id);
+            ForgetResult {
+                credential_removed: true,
+                trust_removed: true,
+                record_removed: true,
+            }
+        }
+    }
+
+    #[test]
+    fn restore_compacts_same_host_records_and_keeps_the_selected_record() {
+        let first = saved_device(DeviceId::new(1));
+        let mut selected = saved_device(DeviceId::new(2));
+        selected.label = "Main Screen".to_owned();
+        let setup = DuplicateSetup {
+            devices: Arc::new(Mutex::new(vec![first, selected.clone()])),
+        };
+        let service: Arc<dyn TvSetupPort> = Arc::new(setup.clone());
+
+        let compacted =
+            compact_saved_devices(&service, setup.saved_devices().unwrap(), Some(selected.id));
+
+        assert_eq!(compacted, vec![selected.clone()]);
+        assert_eq!(setup.saved_devices().unwrap(), vec![selected]);
     }
 
     fn connected_coordinator() -> (TvControlCoordinator, SavedDevice) {

@@ -61,8 +61,8 @@ Settings Window
 └─────────────────────┴─────────────────────────────────────┘
 ```
 
-The sketch communicates order and grouping only. It does not set control
-dimensions, spacing, colors, icons, or final window size. A draggable split bar
+The sketch communicates order and grouping only; the P1-M14 visual decisions
+below supersede its text-button depiction. A draggable split bar
 between the primary view and Global Messages Pane adjusts the latter's height.
 The Sidebar items replace only the primary view; the Global Messages Pane
 remains in the Main Pane below it.
@@ -222,8 +222,29 @@ local status, but the user-relevant message goes to this shared pane.
 
 Use an always-dark graphite interface, blue interaction accents, and semantic
 green, amber, and red status styling with text equivalents. The main window
-minimum size is 1100 x 760; the Settings Window minimum is 1000 x 660. P1-M14
-groups Remote View into high-contrast control cards and TV Settings into
-selected-TV, pairing/connection, Wake-setup, and guidance cards. Preserve
-clear focus indication, keyboard access, and accessible names for every
-control.
+minimum size is 1100 x 760; the Settings Window minimum is 1000 x 660.
+
+P1-M14 makes the Main Window Sidebar a compact icon rail inspired by the
+owner-supplied VS Code activity-bar reference. Navigation button slots fill
+the rail width without an outer left/right margin or vertical gaps. Their
+resting background matches the Sidebar; pointer hover, selection, focus, and
+disabled states are visually distinct. Power stays above Remote and Settings
+stays at the bottom. Use original local bitmap icons for every Sidebar item,
+not copied VS Code artwork. Tooltips and accessible names retain the view
+names even when button faces are icon-only.
+
+Each Main Pane primary view uses one bounded-width, horizontally centered
+box titled with that view's name. Remote View groups power, directional,
+navigation, and volume controls inside the box; Power View groups Wake Steps
+and power controls inside its box. Existing placeholder views use the same
+titled wrapper. Main Pane action buttons use original local bitmap artwork
+where feasible and show pointer-hover feedback. Keep visible text beside
+ambiguous Wake/retry/cancel actions, and do not treat the Volume Slider as a
+button. The view box scrolls within the primary-view region and does not
+include or overlap Global Messages.
+
+TV Settings uses selected-TV, pairing/connection, Wake-setup, and guidance
+cards. Setup and recovery actions keep their text even if paired with an icon.
+Preserve clear focus indication, keyboard access, and accessible names for
+every control; bitmap and hover treatments never replace semantic text or
+disabled guidance.

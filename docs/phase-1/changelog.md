@@ -4,6 +4,17 @@ Status: Active
 
 ## Entries
 
+- 2026-10-09 — Revised the P1-M14 plan using the owner's VS Code Sidebar
+  reference. The Main Window Sidebar becomes a compact bitmap-led rail with
+  edge-to-edge, gapless button slots, a Sidebar-matched resting background,
+  and separate hover/selected/focus states. Each Main Pane view gains one
+  horizontally centered box titled with the view name; Remote and Power
+  controls remain grouped within it. Original bitmap artwork is planned for
+  Sidebar and implemented Main Pane buttons, with visible text retained where
+  icons alone would be ambiguous. Added an Iced/bundle feasibility gate,
+  accessibility and fallback rules, and native visual acceptance criteria.
+  This is a plan revision, not an implementation.
+
 - 2026-10-09 — Reviewed and hardened P1-M13. A selected TV now remains in
   the in-memory Wake list if the full list load fails, and saving Wake settings
   repairs a missing cache entry. Invalid active-interface configuration is

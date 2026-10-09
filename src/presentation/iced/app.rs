@@ -195,21 +195,21 @@ impl App {
             } => self.finish_wake_reconnect(attempt, generation, device, result),
             Message::WakeWiredChanged(value) => {
                 self.wake_wired = value;
-                Task::none()
+                self.auto_save_wake_configuration()
             }
             Message::WakeWifiChanged(value) => {
                 self.wake_wifi = value;
-                Task::none()
+                self.auto_save_wake_configuration()
             }
             Message::WakeInterfaceSelected(value) => {
                 self.wake_active = Some(value);
-                Task::none()
+                self.auto_save_wake_configuration()
             }
             Message::WakeInterfaceCleared => {
                 self.wake_active = None;
-                Task::none()
+                self.auto_save_wake_configuration()
             }
-            Message::SaveWakeConfiguration => self.save_wake_configuration(),
+            Message::SaveWakeConfiguration => self.save_wake_configuration(true),
             Message::TvAddressChanged(value) => {
                 self.tv_address = value;
                 self.coordinator.address_changed();
@@ -759,7 +759,32 @@ impl App {
         self.wake_active = device.wake.active;
     }
 
-    fn save_wake_configuration(&mut self) -> Task<Message> {
+    fn auto_save_wake_configuration(&mut self) -> Task<Message> {
+        if self.coordinator.app_state.selected_device().is_none() {
+            return Task::none();
+        }
+        let parse = |value: &str| {
+            if value.is_empty() {
+                Ok(None)
+            } else {
+                value.parse().map(Some)
+            }
+        };
+        let (Ok(wired), Ok(wifi)) = (parse(&self.wake_wired), parse(&self.wake_wifi)) else {
+            return Task::none();
+        };
+        let wake = WakeConfiguration {
+            wired,
+            wifi,
+            active: self.wake_active,
+        };
+        if wake.active.is_some() && wake.active_mac().is_none() {
+            return Task::none();
+        }
+        self.persist_wake_configuration(wake, false)
+    }
+
+    fn save_wake_configuration(&mut self, announce: bool) -> Task<Message> {
         let parse = |value: &str| {
             if value.is_empty() {
                 Ok(None)
@@ -782,17 +807,29 @@ impl App {
             self.settings_status = "Enter a MAC for the selected Wake interface.".to_owned();
             return Task::none();
         }
+        self.persist_wake_configuration(wake, announce)
+    }
+
+    fn persist_wake_configuration(
+        &mut self,
+        wake: WakeConfiguration,
+        announce: bool,
+    ) -> Task<Message> {
         let Ok(device) = self.coordinator.save_wake_configuration(wake) else {
             self.settings_status = "Could not save Wake configuration.".to_owned();
             return Task::none();
         };
         self.load_wake_draft(&device);
         self.settings_status = "Wake configuration saved.".to_owned();
-        self.publish(
-            super::view_model::MessageSeverity::Information,
-            super::view_model::MessageSource::SettingsWindow,
-            "Wake configuration saved for the selected TV.",
-        )
+        if announce {
+            self.publish(
+                super::view_model::MessageSeverity::Information,
+                super::view_model::MessageSource::SettingsWindow,
+                "Wake configuration saved for the selected TV.",
+            )
+        } else {
+            Task::none()
+        }
     }
 
     fn pump_dispatch(&mut self) -> Task<Message> {
@@ -804,30 +841,28 @@ impl App {
         let mut follow = false;
         for result in self.coordinator.terminal_results_snapshot() {
             let outcome = match result.outcome {
-                TerminalOutcome::Written => {
-                    "written to the TV connection; TV response is unverified."
-                }
+                TerminalOutcome::Written => None,
                 TerminalOutcome::Uncertain => {
-                    "uncertain after a transport failure; it will not be retried."
+                    Some("uncertain after a transport failure; it will not be retried.")
                 }
-                TerminalOutcome::NotSent(NotSentReason::Cancelled) => "cancelled before the write.",
+                TerminalOutcome::NotSent(NotSentReason::Cancelled) => {
+                    Some("cancelled before the write.")
+                }
                 TerminalOutcome::NotSent(NotSentReason::Policy(_)) => {
-                    "not sent because control availability changed."
+                    Some("not sent because control availability changed.")
                 }
                 TerminalOutcome::NotSent(NotSentReason::TransportUnavailable) => {
-                    "not sent; reconnect the TV."
+                    Some("not sent; reconnect the TV.")
                 }
             };
-            let text = format!("Remote request {outcome}");
-            follow |= self.view_model.messages_mut().append(
-                if matches!(result.outcome, TerminalOutcome::Written) {
-                    super::view_model::MessageSeverity::Information
-                } else {
-                    super::view_model::MessageSeverity::Warning
-                },
-                super::view_model::MessageSource::MainWindow,
-                text,
-            );
+            if let Some(outcome) = outcome {
+                let text = format!("Remote request {outcome}");
+                follow |= self.view_model.messages_mut().append(
+                    super::view_model::MessageSeverity::Warning,
+                    super::view_model::MessageSource::MainWindow,
+                    text,
+                );
+            }
             self.coordinator.acknowledge_terminal_through(result.id);
         }
         if follow {
@@ -1018,10 +1053,11 @@ fn shortcut_for(key: &Key, modifiers: Modifiers) -> Option<Shortcut> {
     }
 
     match key.as_ref() {
-        Key::Character("1") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Remote)),
-        Key::Character("2") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Sources)),
-        Key::Character("3") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Apps)),
-        Key::Character("4") => Some(Shortcut::Navigate(
+        Key::Character("1") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Power)),
+        Key::Character("2") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Remote)),
+        Key::Character("3") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Sources)),
+        Key::Character("4") => Some(Shortcut::Navigate(super::view_model::PrimaryView::Apps)),
+        Key::Character("5") => Some(Shortcut::Navigate(
             super::view_model::PrimaryView::TextInput,
         )),
         Key::Character(",") => Some(Shortcut::OpenSettings),
@@ -1327,6 +1363,25 @@ mod tests {
 
         assert_eq!(app.coordinator.saved_devices.len(), 1);
         assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[test]
+    fn valid_wake_mac_input_is_persisted_without_a_message_entry() {
+        let device = saved_device(crate::DeviceId::new(18));
+        let setup = Arc::new(FakeSetup::new(device.clone()));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(setup.clone());
+        app.coordinator.app_state.select_device(device.display());
+        let messages_before = app.view_model.messages().entries().len();
+
+        let _ = app.update(Message::WakeWiredChanged("02:11:22:33:44:55".to_owned()));
+
+        let saved = setup.device.lock().unwrap();
+        assert_eq!(
+            saved.wake.wired.map(|mac| mac.to_string()).as_deref(),
+            Some("02:11:22:33:44:55")
+        );
+        assert_eq!(app.view_model.messages().entries().len(), messages_before);
     }
 
     #[tokio::test]
@@ -1636,7 +1691,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn written_session_result_is_reported_without_claiming_tv_response() {
+    async fn written_session_result_is_acknowledged_without_global_message() {
         let (mut app, _) = App::new();
         let device = saved_device(crate::DeviceId::new(7));
         app.coordinator.app_state.select_device(device.display());
@@ -1669,15 +1724,14 @@ mod tests {
             control: Box::new(TestControl),
         });
 
+        let messages_before = app.view_model.messages().entries().len();
         let _ = app.update(Message::SessionEvent {
             generation,
             session_id: 1,
             event: TvSessionEvent::Written(id),
         });
 
-        let message = app.view_model.messages().entries().back().unwrap();
-        assert!(message.text.contains("written to the TV connection"));
-        assert!(message.text.contains("TV response is unverified"));
+        assert_eq!(app.view_model.messages().entries().len(), messages_before);
         assert_eq!(app.coordinator.dispatcher.pending_ids().count(), 0);
     }
 
@@ -1732,12 +1786,19 @@ mod tests {
     #[test]
     fn keyboard_shortcuts_require_command_and_match_routes() {
         let command = Modifiers::COMMAND;
-        assert_eq!(
-            shortcut_for(&Key::Character("4".into()), command),
-            Some(Shortcut::Navigate(
-                super::super::view_model::PrimaryView::TextInput
-            ))
-        );
+        let routes = [
+            ("1", super::super::view_model::PrimaryView::Power),
+            ("2", super::super::view_model::PrimaryView::Remote),
+            ("3", super::super::view_model::PrimaryView::Sources),
+            ("4", super::super::view_model::PrimaryView::Apps),
+            ("5", super::super::view_model::PrimaryView::TextInput),
+        ];
+        for (key, route) in routes {
+            assert_eq!(
+                shortcut_for(&Key::Character(key.into()), command),
+                Some(Shortcut::Navigate(route))
+            );
+        }
         assert_eq!(
             shortcut_for(&Key::Character(",".into()), command),
             Some(Shortcut::OpenSettings)

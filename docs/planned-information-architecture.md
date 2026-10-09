@@ -39,13 +39,15 @@ Settings Window
 ```
 
 The main app has two main parts: the Sidebar on the left and the Main Pane on
-the right. It opens to the Remote View. Selecting Power, Sources, Apps, or Text Input
-in the Sidebar displays the corresponding view in the Main Pane. The Global
-Messages Pane remains below that view. The icon-only Settings button sits at
-the bottom of the Sidebar and opens a separate Settings Window, which has
-its own Settings Sidebar and Settings Main Pane. TV is the first Settings
-Sidebar item. The Global Messages Pane also receives messages originating in
-the Settings Window.
+the right. It opens to the Remote View. Selecting Power, Sources, Apps, or Text
+Input in the Sidebar displays the corresponding view in the Main Pane. P1-M14
+renders these named destinations as a compact bitmap-led icon rail with
+tooltips and accessible names; the icon-only Settings button stays at its
+bottom and opens a separate Settings Window. Each primary view uses a centered
+box titled with its view name. The Global Messages Pane remains below that
+view. The Settings Window has its own Settings Sidebar and Settings Main Pane;
+TV is the first Settings Sidebar item. The Global Messages Pane also receives
+messages originating in the Settings Window.
 
 ## Product areas
 

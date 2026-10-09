@@ -1,15 +1,257 @@
+use super::icons::Icon;
 use super::split_bar::SplitBar;
 use super::ui_message::Message;
 use super::view_model::{feed_is_at_bottom, PrimaryView, RemoteControlViewState, ViewModel};
 use crate::application::tv_control_coordinator::{WakeFailure, WakeStage};
 use crate::application::wake::WakeInterface;
 use crate::{RemoteAction, SendRemoteAction};
+use ::iced::alignment::Horizontal;
 use ::iced::widget::{
-    button, column, container, row, scrollable, text, text_input, tooltip, Space,
+    button, column, container, radio, row, scrollable, text, text_input, tooltip, Space,
 };
-use ::iced::{Alignment, Element, Length};
+use ::iced::{Alignment, Background, Border, Color, Element, Length, Theme};
 
 pub const MESSAGE_FEED_ID: &str = "global-message-feed";
+const SIDEBAR_WIDTH: f32 = 68.0;
+const SIDEBAR_SLOT_HEIGHT: f32 = 58.0;
+const VIEW_BOX_WIDTH: f32 = 660.0;
+const TAB_TITLE_SIZE: u32 = 14;
+const WAKE_STEP_MARKER_WIDTH: f32 = 16.0;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WakeChoice {
+    Wired,
+    WiFi,
+    Disabled,
+}
+
+impl WakeChoice {
+    fn selected(active: Option<WakeInterface>) -> Self {
+        match active {
+            Some(WakeInterface::Wired) => Self::Wired,
+            Some(WakeInterface::WiFi) => Self::WiFi,
+            None => Self::Disabled,
+        }
+    }
+}
+
+fn graphite(value: u8) -> Color {
+    Color::from_rgb8(value, value, value)
+}
+
+fn sidebar_color() -> Color {
+    graphite(25)
+}
+
+fn sidebar_button_style(selected: bool, _: &Theme, status: button::Status) -> button::Style {
+    let background = match (selected, status) {
+        (true, button::Status::Hovered | button::Status::Pressed) => Color::from_rgb8(48, 65, 82),
+        (true, _) => Color::from_rgb8(42, 50, 60),
+        (false, button::Status::Hovered | button::Status::Pressed) => graphite(48),
+        _ => sidebar_color(),
+    };
+    button::Style {
+        background: Some(Background::Color(background)),
+        border: Border {
+            width: if selected { 2.0 } else { 0.0 },
+            color: if selected {
+                Color::from_rgb8(91, 166, 224)
+            } else {
+                background
+            },
+            ..Border::default()
+        },
+        ..button::Style::default()
+    }
+}
+
+fn action_button_style(_: &Theme, status: button::Status) -> button::Style {
+    let background = match status {
+        button::Status::Active => graphite(52),
+        button::Status::Hovered => Color::from_rgb8(55, 77, 99),
+        button::Status::Pressed => Color::from_rgb8(38, 91, 139),
+        button::Status::Disabled => graphite(39),
+    };
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: if status == button::Status::Disabled {
+            graphite(130)
+        } else {
+            Color::WHITE
+        },
+        border: Border {
+            color: if status == button::Status::Hovered {
+                Color::from_rgb8(107, 165, 212)
+            } else {
+                graphite(76)
+            },
+            width: 1.0,
+            radius: 8.0.into(),
+        },
+        ..button::Style::default()
+    }
+}
+
+fn box_style(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(graphite(37))),
+        border: Border {
+            color: graphite(76),
+            width: 1.0,
+            radius: 12.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn card_style(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(graphite(46))),
+        border: Border {
+            color: graphite(80),
+            width: 1.0,
+            radius: 9.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn active_tab_style(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color::from_rgb8(46, 46, 48))),
+        text_color: Some(Color::from_rgb8(232, 232, 232)),
+        border: Border {
+            color: graphite(82),
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn message_feed_style(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(graphite(28))),
+        border: Border {
+            color: graphite(92),
+            width: 1.0,
+            radius: 8.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn active_tab(title: &'static str) -> Element<'static, Message> {
+    container(text(title).size(TAB_TITLE_SIZE))
+        .padding([5, 10])
+        .style(active_tab_style)
+        .into()
+}
+
+fn wake_choice_radio(
+    label: &'static str,
+    choice: WakeChoice,
+    selected: WakeChoice,
+    enabled: bool,
+) -> Element<'static, Message> {
+    if enabled {
+        return radio(label, choice, Some(selected), move |choice| match choice {
+            WakeChoice::Wired => Message::WakeInterfaceSelected(WakeInterface::Wired),
+            WakeChoice::WiFi => Message::WakeInterfaceSelected(WakeInterface::WiFi),
+            WakeChoice::Disabled => Message::WakeInterfaceCleared,
+        })
+        .size(18)
+        .text_size(14)
+        .into();
+    }
+
+    row![
+        text(if choice == selected { "◉" } else { "○" }).style(|_| {
+            ::iced::widget::text::Style {
+                color: Some(graphite(118)),
+            }
+        }),
+        text(label).size(14).style(|_| ::iced::widget::text::Style {
+            color: Some(graphite(118)),
+        })
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+fn tooltip_style(_: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(Color::from_rgb8(14, 23, 33))),
+        text_color: Some(Color::from_rgb8(244, 248, 252)),
+        border: Border {
+            color: Color::from_rgb8(96, 165, 212),
+            width: 1.0,
+            radius: 7.0.into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn view_box(title: &'static str, content: Element<'static, Message>) -> Element<'static, Message> {
+    container(
+        container(column![text(title).size(26), content].spacing(18))
+            .padding(22)
+            .width(Length::Fill)
+            .max_width(VIEW_BOX_WIDTH)
+            .style(box_style),
+    )
+    .center_x(Length::Fill)
+    .padding([18, 22])
+    .into()
+}
+
+fn card<'a>(title: &'static str, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(column![text(title).size(18), content.into()].spacing(12))
+        .padding(16)
+        .width(Length::Fill)
+        .style(card_style)
+        .into()
+}
+
+fn titled_panel<'a>(
+    title: &'static str,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    container(
+        column![
+            row![text(title).size(16), Space::new().width(Length::Fill)].align_y(Alignment::Center),
+            content.into()
+        ]
+        .spacing(12),
+    )
+    .padding(16)
+    .width(Length::Fill)
+    .style(card_style)
+    .into()
+}
+
+fn titled_frame(
+    title: &'static str,
+    content: Element<'static, Message>,
+    max_width: Option<f32>,
+) -> Element<'static, Message> {
+    let frame = container(
+        column![
+            row![active_tab(title), Space::new().width(Length::Fill)].align_y(Alignment::End),
+            content
+        ]
+        .spacing(12),
+    )
+    .padding(22)
+    .width(Length::Fill)
+    .style(box_style);
+
+    match max_width {
+        Some(width) => frame.max_width(width).into(),
+        None => frame.into(),
+    }
+}
 
 pub fn main_window(
     view_model: &ViewModel,
@@ -17,24 +259,33 @@ pub fn main_window(
     wake_configured: bool,
     wake_tick: bool,
 ) -> Element<'_, Message> {
-    let sidebar = column![
-        navigation_button(PrimaryView::Power, view_model.primary_view()),
-        navigation_button(PrimaryView::Remote, view_model.primary_view()),
-        navigation_button(PrimaryView::Sources, view_model.primary_view()),
-        navigation_button(PrimaryView::Apps, view_model.primary_view()),
-        navigation_button(PrimaryView::TextInput, view_model.primary_view()),
-        Space::new().height(Length::Fill),
-        tooltip(
-            button(text("⚙").size(20))
-                .on_press(Message::OpenSettings)
-                .width(Length::Fill),
-            "Settings",
-            tooltip::Position::Top,
-        ),
-    ]
-    .padding(16)
-    .spacing(10)
-    .width(180);
+    let sidebar = container(
+        column![
+            navigation_button(PrimaryView::Power, view_model.primary_view()),
+            navigation_button(PrimaryView::Remote, view_model.primary_view()),
+            navigation_button(PrimaryView::Sources, view_model.primary_view()),
+            navigation_button(PrimaryView::Apps, view_model.primary_view()),
+            navigation_button(PrimaryView::TextInput, view_model.primary_view()),
+            Space::new().height(Length::Fill),
+            tooltip(
+                button(container(Icon::Settings.image(30.0, true)).center(Length::Fill))
+                    .on_press(Message::OpenSettings)
+                    .width(Length::Fill)
+                    .height(SIDEBAR_SLOT_HEIGHT)
+                    .padding(0)
+                    .style(|theme, status| sidebar_button_style(false, theme, status)),
+                "Settings",
+                tooltip::Position::Right,
+            )
+            .style(tooltip_style),
+        ]
+        .spacing(0)
+        .width(SIDEBAR_WIDTH)
+        .height(Length::Fill),
+    )
+    .width(SIDEBAR_WIDTH)
+    .height(Length::Fill)
+    .style(|_| container::Style::default().background(sidebar_color()));
 
     let main_pane = column![
         scrollable(primary_view(
@@ -56,24 +307,30 @@ pub fn main_window(
     row![sidebar, main_pane].height(Length::Fill).into()
 }
 
-fn navigation_button(
-    destination: PrimaryView,
-    selected: PrimaryView,
-) -> ::iced::widget::Button<'static, Message> {
-    let label = if destination == selected {
-        format!("{} ✓", destination.title())
-    } else {
-        destination.title().to_owned()
-    };
+fn navigation_icon(destination: PrimaryView) -> Icon {
+    match destination {
+        PrimaryView::Power => Icon::Power,
+        PrimaryView::Remote => Icon::Remote,
+        PrimaryView::Sources => Icon::Sources,
+        PrimaryView::Apps => Icon::Apps,
+        PrimaryView::TextInput => Icon::TextInput,
+    }
+}
 
-    button(text(label))
-        .on_press(Message::Navigate(destination))
-        .style(if destination == selected {
-            button::secondary
-        } else {
-            button::primary
-        })
-        .width(Length::Fill)
+fn navigation_button(destination: PrimaryView, selected: PrimaryView) -> Element<'static, Message> {
+    let is_selected = destination == selected;
+    tooltip(
+        button(container(navigation_icon(destination).image(30.0, true)).center(Length::Fill))
+            .on_press(Message::Navigate(destination))
+            .width(Length::Fill)
+            .height(SIDEBAR_SLOT_HEIGHT)
+            .padding(0)
+            .style(move |theme, status| sidebar_button_style(is_selected, theme, status)),
+        destination.title(),
+        tooltip::Position::Right,
+    )
+    .style(tooltip_style)
+    .into()
 }
 
 fn primary_view(
@@ -102,9 +359,7 @@ fn primary_view(
 }
 
 fn empty_primary_view(title: &'static str, status: &'static str) -> Element<'static, Message> {
-    container(column![text(title).size(26), Space::new().height(12), text(status)].spacing(8))
-        .width(Length::Fill)
-        .into()
+    view_box(title, text(status).into())
 }
 
 fn remote_view(
@@ -125,44 +380,41 @@ fn remote_view(
     .align_x(Alignment::Center)
     .spacing(8);
 
-    container(
+    titled_frame(
+        "Remote View",
         column![
-            text("Remote View").size(26),
-            Space::new().height(8),
-            power_toggle_button(control_state, wake_stage, wake_configured),
-            directional_pad,
-            row![
-                remote_button("Back", RemoteAction::Back, control_state),
-                remote_button("Home", RemoteAction::Home, control_state)
-            ]
-            .spacing(8),
-            text("Volume"),
-            tooltip(
-                button("Volume Slider"),
-                "Exact volume is unavailable in this milestone.",
-                tooltip::Position::Top
-            ),
-            row![
-                remote_button("Mute", RemoteAction::Mute, control_state),
-                remote_button("Volume Down", RemoteAction::VolumeDown, control_state),
-                remote_button("Volume Up", RemoteAction::VolumeUp, control_state)
-            ]
-            .spacing(8),
-            text("Keyboard: arrows, Return, Esc, Home, M, + (Shift+=), and - (Remote View only)."),
+            container(power_toggle_button(
+                control_state,
+                wake_stage,
+                wake_configured,
+                false,
+            ))
+            .center_x(Length::Fill),
+            container(directional_pad).center_x(Length::Fill),
+            container(
+                row![
+                    remote_button("Back", RemoteAction::Back, control_state),
+                    remote_button("Home", RemoteAction::Home, control_state),
+                    remote_button("Mute", RemoteAction::Mute, control_state),
+                    remote_button("Volume Down", RemoteAction::VolumeDown, control_state),
+                    remote_button("Volume Up", RemoteAction::VolumeUp, control_state)
+                ]
+                .spacing(8),
+            )
+            .center_x(Length::Fill),
         ]
-        .spacing(10)
-        .align_x(Alignment::Center),
+        .spacing(14)
+        .into(),
+        None,
     )
-    .width(Length::Fill)
-    .into()
 }
 
 fn power_toggle_button(
     control_state: &RemoteControlViewState,
     stage: WakeStage,
     configured: bool,
+    with_label: bool,
 ) -> Element<'static, Message> {
-    let button = button("Power Toggle");
     let connected = control_state
         .action_disabled_reason(RemoteAction::PowerToggle)
         .is_none();
@@ -170,30 +422,45 @@ fn power_toggle_button(
         stage,
         WakeStage::CheckingConnection | WakeStage::PacketSending | WakeStage::Reconnecting
     );
-    if let Some(device) = control_state
+    let enabled_device = control_state
         .selected_device
         .as_ref()
-        .filter(|_| !busy && (connected || configured))
-    {
+        .filter(|_| !busy && (connected || configured));
+    let reason = if enabled_device.is_some() {
+        "Power Toggle"
+    } else if busy {
+        "Power is already in progress."
+    } else if control_state.selected_device.is_none() {
+        "No TV selected. Open Settings to choose a TV."
+    } else if !configured {
+        "Set an active Wake MAC in TV Settings before using Power while disconnected."
+    } else {
+        "Power is unavailable for this TV."
+    };
+    let button = action_button(
+        Icon::Power,
+        "Power Toggle",
+        with_label,
+        enabled_device.is_some(),
+    );
+    let button = if with_label {
         button
-            .on_press(Message::PowerToggle(SendRemoteAction::new(
+    } else {
+        button.height(48).width(Length::Fixed(56.0))
+    };
+    tooltip(
+        button.on_press_maybe(enabled_device.map(|device| {
+            Message::PowerToggle(SendRemoteAction::new(
                 device.id(),
                 control_state.selection_generation,
                 RemoteAction::PowerToggle,
-            )))
-            .into()
-    } else {
-        let reason = if busy {
-            "Power is already in progress."
-        } else if control_state.selected_device.is_none() {
-            "No TV selected. Open Settings to choose a TV."
-        } else if !configured {
-            "Set an active Wake MAC in TV Settings before using Power while disconnected."
-        } else {
-            "Power is unavailable for this TV."
-        };
-        tooltip(button, reason, tooltip::Position::Top).into()
-    }
+            ))
+        })),
+        reason,
+        tooltip::Position::Top,
+    )
+    .style(tooltip_style)
+    .into()
 }
 
 fn power_view(
@@ -209,7 +476,7 @@ fn power_view(
         WakeStage::PacketSending => "Sending one magic packet…",
         WakeStage::Reconnecting => "Magic packet sent. Waiting for the paired remote channel…",
         WakeStage::Connected => "Paired remote channel is ready. No wake packet was needed.",
-        WakeStage::Ready => "Paired remote channel ready. Physical panel state is not measured.",
+        WakeStage::Ready => "Paired remote channel is ready. Physical panel state is not measured.",
         WakeStage::Failed(WakeFailure::Timeout) | WakeStage::FailedAfterSend(WakeFailure::Timeout) => "Remote was not ready within 30 seconds. Check the TV and network, then try again.",
         WakeStage::Failed(WakeFailure::PairingRequired) | WakeStage::FailedAfterSend(WakeFailure::PairingRequired) => "Saved pairing needs attention. Re-pair in TV Settings.",
         WakeStage::Failed(WakeFailure::Local(crate::application::wake_transport::WakeSendError::InvalidTarget)) => "Saved TV address is not a valid local target. Check TV Settings.",
@@ -287,14 +554,13 @@ fn power_view(
     let connected = control_state
         .action_disabled_reason(RemoteAction::PowerToggle)
         .is_none();
-    let wake_button = button("Wake").on_press_maybe(
-        (configured
-            && !connected
-            && !active
-            && stage != WakeStage::Ready
-            && control_state.selected_device.is_some())
-        .then_some(Message::Wake),
-    );
+    let wake_enabled = configured
+        && !connected
+        && !active
+        && stage != WakeStage::Ready
+        && control_state.selected_device.is_some();
+    let wake_button = action_button(Icon::Wake, "Wake", true, wake_enabled)
+        .on_press_maybe(wake_enabled.then_some(Message::Wake));
     let wake_button = tooltip(
         wake_button,
         if control_state.selected_device.is_none() {
@@ -309,55 +575,71 @@ fn power_view(
             "Send one magic packet to the selected TV."
         },
         tooltip::Position::Top,
-    );
-    let retry_button = button("Try again").on_press_maybe(
-        (configured
-            && !connected
-            && matches!(
-                stage,
-                WakeStage::Failed(_)
-                    | WakeStage::FailedAfterSend(_)
-                    | WakeStage::Cancelled
-                    | WakeStage::CancelledDuringSend
-                    | WakeStage::CancelledAfterSend
-            )
-            && !matches!(
-                stage,
-                WakeStage::Failed(WakeFailure::PairingRequired)
-                    | WakeStage::FailedAfterSend(WakeFailure::PairingRequired)
-            ))
-        .then_some(Message::Wake),
-    );
-    container(
-        column![
-            text("Power View").size(26),
-            text("Wake Steps").size(20),
-            wake_step(
-                "Wake configuration",
-                configured_text,
-                if configured {
-                    StepState::Complete
-                } else {
-                    StepState::Failed
-                },
-                tick
-            ),
-            wake_step("Magic packet", packet_text, packet_step, tick),
-            wake_step("Reconnecting", reconnect_text, reconnect_step, tick),
-            wake_step("Remote ready", ready_text, ready_step, tick),
-            text(status),
-            row![
-                wake_button,
-                power_toggle_button(control_state, stage, configured),
-                retry_button,
-                button("Cancel").on_press_maybe(active.then_some(Message::CancelWake))
-            ]
-            .spacing(8),
-        ]
-        .spacing(10),
     )
-    .width(Length::Fill)
-    .into()
+    .style(tooltip_style);
+    let retry_enabled = configured
+        && !connected
+        && matches!(
+            stage,
+            WakeStage::Failed(_)
+                | WakeStage::FailedAfterSend(_)
+                | WakeStage::Cancelled
+                | WakeStage::CancelledDuringSend
+                | WakeStage::CancelledAfterSend
+        )
+        && !matches!(
+            stage,
+            WakeStage::Failed(WakeFailure::PairingRequired)
+                | WakeStage::FailedAfterSend(WakeFailure::PairingRequired)
+        );
+    let retry_button = action_button(Icon::Retry, "Try again", true, retry_enabled)
+        .on_press_maybe(retry_enabled.then_some(Message::Wake));
+    titled_frame(
+        "Power View",
+        column![
+            titled_panel(
+                "Wake Steps",
+                column![
+                    wake_step(
+                        "Wake configuration",
+                        configured_text,
+                        if configured {
+                            StepState::Complete
+                        } else {
+                            StepState::Failed
+                        },
+                        tick,
+                        active
+                    ),
+                    wake_step("Magic packet", packet_text, packet_step, tick, active),
+                    wake_step("Reconnecting", reconnect_text, reconnect_step, tick, active),
+                    wake_step("Remote ready", ready_text, ready_step, tick, active),
+                    text(status).style(|_| ::iced::widget::text::Style {
+                        color: Some(graphite(145)),
+                    }),
+                ]
+                .spacing(10)
+            ),
+            titled_panel(
+                "Power Controls",
+                container(
+                    row![
+                        wake_button,
+                        power_toggle_button(control_state, stage, configured, true),
+                        retry_button,
+                        action_button(Icon::Cancel, "Cancel", true, active)
+                            .on_press_maybe(active.then_some(Message::CancelWake))
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                )
+                .center_x(Length::Fill),
+            ),
+        ]
+        .spacing(14)
+        .into(),
+        None,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -373,7 +655,19 @@ fn wake_step(
     status: &'static str,
     state: StepState,
     tick: bool,
+    active: bool,
 ) -> Element<'static, Message> {
+    if !active {
+        return row![
+            Space::new().width(WAKE_STEP_MARKER_WIDTH),
+            text(format!("{label}: {status}")).style(|_| ::iced::widget::text::Style {
+                color: Some(graphite(145)),
+            })
+        ]
+        .align_y(Alignment::Center)
+        .into();
+    }
+
     let mark = match state {
         StepState::Waiting => "○",
         StepState::Active if tick => "●",
@@ -381,14 +675,20 @@ fn wake_step(
         StepState::Complete => "✓",
         StepState::Failed => "!",
     };
-    text(format!("{mark} {label}: {status}"))
-        .style(match state {
-            StepState::Waiting => ::iced::widget::text::primary,
-            StepState::Active => ::iced::widget::text::warning,
-            StepState::Complete => ::iced::widget::text::success,
-            StepState::Failed => ::iced::widget::text::danger,
-        })
-        .into()
+    let style = match state {
+        StepState::Waiting => ::iced::widget::text::primary,
+        StepState::Active => ::iced::widget::text::warning,
+        StepState::Complete => ::iced::widget::text::success,
+        StepState::Failed => ::iced::widget::text::danger,
+    };
+    row![
+        container(text(mark).style(style))
+            .width(WAKE_STEP_MARKER_WIDTH)
+            .align_x(Horizontal::Center),
+        text(format!("{label}: {status}")).style(style)
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }
 
 fn remote_button(
@@ -396,29 +696,74 @@ fn remote_button(
     action: RemoteAction,
     control_state: &RemoteControlViewState,
 ) -> Element<'static, Message> {
-    let button = button(label);
-    if let Some(device) = control_state
+    let enabled_device = control_state
         .selected_device
         .as_ref()
-        .filter(|_| control_state.action_disabled_reason(action).is_none())
-    {
-        button
-            .on_press(Message::AttemptRemoteAction(SendRemoteAction::new(
-                device.id(),
-                control_state.selection_generation,
-                action,
-            )))
-            .into()
-    } else {
-        tooltip(
-            button,
-            control_state
-                .action_disabled_reason(action)
-                .unwrap_or("Remote actions are unavailable."),
-            tooltip::Position::Top,
-        )
-        .into()
+        .filter(|_| control_state.action_disabled_reason(action).is_none());
+    tooltip(
+        action_button(action_icon(action), label, false, enabled_device.is_some())
+            .height(48)
+            .width(Length::Fixed(56.0))
+            .on_press_maybe(enabled_device.map(|device| {
+                Message::AttemptRemoteAction(SendRemoteAction::new(
+                    device.id(),
+                    control_state.selection_generation,
+                    action,
+                ))
+            })),
+        control_state
+            .action_disabled_reason(action)
+            .unwrap_or(label),
+        tooltip::Position::Top,
+    )
+    .style(tooltip_style)
+    .into()
+}
+
+fn action_icon(action: RemoteAction) -> Icon {
+    match action {
+        RemoteAction::PowerToggle => Icon::Power,
+        RemoteAction::Up => Icon::Up,
+        RemoteAction::Down => Icon::Down,
+        RemoteAction::Left => Icon::Left,
+        RemoteAction::Right => Icon::Right,
+        RemoteAction::Enter => Icon::Enter,
+        RemoteAction::Back => Icon::Back,
+        RemoteAction::Home => Icon::Home,
+        RemoteAction::Mute => Icon::Mute,
+        RemoteAction::VolumeDown => Icon::VolumeDown,
+        RemoteAction::VolumeUp => Icon::VolumeUp,
     }
+}
+
+fn action_button(
+    icon: Icon,
+    label: &'static str,
+    with_label: bool,
+    enabled: bool,
+) -> ::iced::widget::Button<'static, Message> {
+    let content: Element<'static, Message> = if with_label {
+        container(
+            row![icon.image(22.0, enabled), text(label).size(14)]
+                .spacing(7)
+                .align_y(Alignment::Center),
+        )
+        .center_y(Length::Fill)
+        .into()
+    } else {
+        container(icon.image(28.0, enabled))
+            .center(Length::Fill)
+            .into()
+    };
+    button(content)
+        .height(50)
+        .width(if with_label {
+            Length::Shrink
+        } else {
+            Length::Fixed(58.0)
+        })
+        .padding(if with_label { 10 } else { 0 })
+        .style(action_button_style)
 }
 
 fn split_bar(height: u16) -> Element<'static, Message> {
@@ -427,9 +772,9 @@ fn split_bar(height: u16) -> Element<'static, Message> {
 
 fn global_messages(view_model: &ViewModel) -> Element<'_, Message> {
     let entries = if view_model.messages().entries().is_empty() {
-        column![text("Global Messages Pane"), text("No messages yet.")].spacing(4)
+        column![text("No messages yet.").size(13)].spacing(6)
     } else {
-        let mut entries = column![text("Global Messages Pane").size(14)].spacing(4);
+        let mut entries = column![].spacing(6);
         for entry in view_model.messages().entries() {
             let severity = text(entry.severity.label())
                 .size(12)
@@ -459,26 +804,31 @@ fn global_messages(view_model: &ViewModel) -> Element<'_, Message> {
         String::new()
     };
 
+    let feed = container(
+        scrollable(entries)
+            .id(MESSAGE_FEED_ID)
+            .height(Length::Fill)
+            .on_scroll(|viewport| {
+                let bounds = viewport.bounds();
+                let content = viewport.content_bounds();
+                let at_bottom =
+                    feed_is_at_bottom(content.height, bounds.height, viewport.absolute_offset().y);
+                Message::FeedScrolled { at_bottom }
+            }),
+    )
+    .padding(10)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(message_feed_style);
+
     container(
         column![
-            scrollable(entries)
-                .id(MESSAGE_FEED_ID)
-                .height(Length::Fill)
-                .on_scroll(|viewport| {
-                    let bounds = viewport.bounds();
-                    let content = viewport.content_bounds();
-                    let at_bottom = feed_is_at_bottom(
-                        content.height,
-                        bounds.height,
-                        viewport.absolute_offset().y,
-                    );
-                    Message::FeedScrolled { at_bottom }
-                }),
+            row![active_tab("Output"), Space::new().width(Length::Fill)].align_y(Alignment::End),
+            feed,
             (!feed_status.is_empty()).then(|| text(feed_status).size(12)),
         ]
         .spacing(4),
     )
-    .padding(10)
     .width(Length::Fill)
     .height(Length::Fixed(f32::from(view_model.message_pane_height())))
     .into()
@@ -526,29 +876,42 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
     let fingerprint_text = fingerprint
         .map(|value| format!("Observed certificate SHA-256: {value}"))
         .unwrap_or_else(|| "No certificate observed yet.".to_owned());
-    let mut main_content = column![
-        text("TV settings").size(26),
-        text(format!("Selected TV: {selected}")),
-        text("Enter TV Address"),
-        button("Discover TVs").on_press(Message::DiscoverTv),
+    let mut selected_content = column![text(format!("Current selection: {selected}"))].spacing(10);
+    for device in saved_devices {
+        selected_content = selected_content.push(
+            button(text(format!("Select saved TV: {}", device.label)))
+                .on_press_maybe((!forget_pending).then_some(Message::SelectSaved(device.id)))
+                .style(action_button_style),
+        );
+    }
+    if saved_devices.is_empty() {
+        selected_content = selected_content.push(text("No saved TVs yet.").size(13));
+    }
+
+    let mut pairing_content = column![
+        text("Enter or discover the address of the intended TV.").size(13),
+        button("Discover TVs")
+            .on_press(Message::DiscoverTv)
+            .style(action_button_style),
     ]
-    .spacing(12);
+    .spacing(10);
     for candidate in candidates {
-        main_content = main_content.push(
+        pairing_content = pairing_content.push(
             button(text(format!(
                 "Unconfirmed candidate: {} — Probe",
                 candidate.as_str()
             )))
-            .on_press(Message::UseCandidate(candidate.clone())),
+            .on_press(Message::UseCandidate(candidate.clone()))
+            .style(action_button_style),
         );
     }
-    main_content = main_content
-            .push(
+    pairing_content = pairing_content
+        .push(
             text_input("Local IP address or host name", address)
                 .on_input(Message::TvAddressChanged)
                 .on_submit(Message::ProbeTv),
-            )
-            .push(button("Probe Secure TV (8002)").on_press(Message::ProbeTv))
+        )
+            .push(button("Probe Secure TV (8002)").on_press(Message::ProbeTv).style(action_button_style))
             .push(text(fingerprint_text).size(12))
             .push(text(format!(
                 "Observed name: {}",
@@ -561,39 +924,130 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
             .push(text("Confirm the address and certificate on the intended TV. Approve the matching TV prompt."))
             .push(button("Confirm TV and Pair").on_press_maybe(
                 if has_fingerprint && !pairing_pending && !forget_pending { Some(Message::ConfirmAndPair) } else { None }
-            ))
+            ).style(action_button_style))
             .push(button("Re-pair Selected TV").on_press_maybe(
                 if has_fingerprint && selected_label.is_some() && !pairing_pending && !forget_pending { Some(Message::ConfirmAndRepair) } else { None }
-            ))
-            .push(row![
-                button("Retry Connection").on_press_maybe(
-                    selected_label.filter(|_| !forget_pending).map(|_| Message::ConnectSelected)
-                ),
-                button("Forget Selected TV").on_press_maybe(
-                    selected_label.filter(|_| !forget_pending).map(|_| Message::ForgetSelected)
+            ).style(action_button_style));
+
+    let connection_content = column![
+        text("Retry the trusted remote connection or forget this TV and its stored pairing.")
+            .size(13),
+        row![
+            button("Retry Connection")
+                .on_press_maybe(
+                    selected_label
+                        .filter(|_| !forget_pending)
+                        .map(|_| Message::ConnectSelected)
                 )
-            ].spacing(8))
-            .push(text("Wake configuration").size(20))
-            .push(text("Use the MAC shown by the TV for its wired or wireless network interface."))
-            .push(text_input("Wired MAC (AA:BB:CC:DD:EE:FF)", wake_wired).on_input(Message::WakeWiredChanged))
-            .push(text_input("Wi-Fi MAC (AA:BB:CC:DD:EE:FF)", wake_wifi).on_input(Message::WakeWifiChanged))
-            .push(row![
-                button(if wake_active == Some(WakeInterface::Wired) { "Wired selected" } else { "Use Wired" }).on_press(Message::WakeInterfaceSelected(WakeInterface::Wired)),
-                button(if wake_active == Some(WakeInterface::WiFi) { "Wi-Fi selected" } else { "Use Wi-Fi" }).on_press(Message::WakeInterfaceSelected(WakeInterface::WiFi)),
-                button("Disable Wake").on_press(Message::WakeInterfaceCleared),
-                button("Save Wake configuration").on_press_maybe(selected_label.filter(|_| !forget_pending).map(|_| Message::SaveWakeConfiguration)),
-            ].spacing(8))
-            .push(text(status));
-    for device in saved_devices {
-        main_content = main_content.push(
-            button(text(format!("Select saved TV: {}", device.label)))
-                .on_press_maybe((!forget_pending).then_some(Message::SelectSaved(device.id))),
-        );
-    }
+                .style(action_button_style),
+            button("Forget Selected TV")
+                .on_press_maybe(
+                    selected_label
+                        .filter(|_| !forget_pending)
+                        .map(|_| Message::ForgetSelected)
+                )
+                .style(action_button_style)
+        ]
+        .spacing(8)
+    ]
+    .spacing(10);
+
+    let wake_content = column![
+        text("Enter the MAC shown by the TV for its wired or Wi-Fi network interface.").size(13),
+        text_input("Wired MAC (AA:BB:CC:DD:EE:FF)", wake_wired).on_input(Message::WakeWiredChanged),
+        text_input("Wi-Fi MAC (AA:BB:CC:DD:EE:FF)", wake_wifi).on_input(Message::WakeWifiChanged),
+        row![
+            wake_choice_radio(
+                "Wired",
+                WakeChoice::Wired,
+                WakeChoice::selected(wake_active),
+                selected_label.is_some()
+                    && !forget_pending
+                    && wake_wired.parse::<crate::domain::MacAddress>().is_ok(),
+            ),
+            wake_choice_radio(
+                "Wi-Fi",
+                WakeChoice::WiFi,
+                WakeChoice::selected(wake_active),
+                selected_label.is_some()
+                    && !forget_pending
+                    && wake_wifi.parse::<crate::domain::MacAddress>().is_ok(),
+            ),
+            wake_choice_radio(
+                "Disabled",
+                WakeChoice::Disabled,
+                WakeChoice::selected(wake_active),
+                selected_label.is_some() && !forget_pending,
+            ),
+        ]
+        .spacing(8),
+        button("Save Wake configuration")
+            .on_press_maybe(
+                selected_label
+                    .filter(|_| !forget_pending)
+                    .map(|_| Message::SaveWakeConfiguration)
+            )
+            .style(action_button_style),
+    ]
+    .spacing(10);
+
+    let main_content = column![
+        text("TV settings").size(26),
+        card("Selected TV", selected_content),
+        card("Discovery and Pairing", pairing_content),
+        card("Connection recovery", connection_content),
+        card("Wake Configuration", wake_content),
+        card("Guidance", text(status)),
+    ]
+    .spacing(14);
     let main_pane = container(scrollable(main_content))
         .padding(20)
         .width(Length::Fill)
         .height(Length::Fill);
 
     row![sidebar, main_pane].height(Length::Fill).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sidebar_buttons_rest_on_the_rail_and_distinguish_hover_from_selection() {
+        let resting = sidebar_button_style(false, &Theme::Dark, button::Status::Active);
+        let hovered = sidebar_button_style(false, &Theme::Dark, button::Status::Hovered);
+        let selected = sidebar_button_style(true, &Theme::Dark, button::Status::Active);
+
+        assert_eq!(resting.background, Some(Background::Color(sidebar_color())));
+        assert_ne!(hovered.background, resting.background);
+        assert_ne!(selected.background, resting.background);
+        assert_eq!(selected.border.width, 2.0);
+    }
+
+    #[test]
+    fn action_buttons_distinguish_hover_and_disabled_states() {
+        let active = action_button_style(&Theme::Dark, button::Status::Active);
+        let hovered = action_button_style(&Theme::Dark, button::Status::Hovered);
+        let disabled = action_button_style(&Theme::Dark, button::Status::Disabled);
+
+        assert_ne!(active.background, hovered.background);
+        assert_ne!(hovered.background, disabled.background);
+        assert_ne!(active.text_color, disabled.text_color);
+    }
+
+    #[test]
+    fn every_primary_destination_has_a_distinct_bitmap_icon() {
+        let icons = [
+            PrimaryView::Power,
+            PrimaryView::Remote,
+            PrimaryView::Sources,
+            PrimaryView::Apps,
+            PrimaryView::TextInput,
+        ]
+        .map(navigation_icon);
+
+        for (index, icon) in icons.iter().enumerate() {
+            assert!(!icons[..index].contains(icon));
+        }
+    }
 }

@@ -77,10 +77,11 @@ apply to the main window; opening Settings also works from the Settings Window.
 
 | Canonical action | Keyboard shortcut(s) |
 | --- | --- |
-| **Remote View** | ⌘1 |
-| **Sources View** | ⌘2 |
-| **Apps View** | ⌘3 |
-| **Text Input View** | ⌘4 |
+| **Power View** | ⌘1 |
+| **Remote View** | ⌘2 |
+| **Sources View** | ⌘3 |
+| **Apps View** | ⌘4 |
+| **Text Input View** | ⌘5 |
 | Open **Settings Window** | ⌘, |
 
 **Power Toggle** and **Volume Slider** have no keyboard shortcut in this

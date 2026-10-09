@@ -169,7 +169,8 @@ Physical Wake, permission recovery, and latency remain unverified.
 ### P1-M14: Remote and Settings GUI Refinement
 
 Status: Planned
-Goal: Refine the dark Remote and Settings windows into grouped control and
-setup cards without adding new remote capabilities.
+Goal: Add a compact bitmap-led Sidebar with hover feedback, center each titled
+Main Pane view box around grouped controls, and refine TV Settings into setup
+cards without adding new remote capabilities.
 Plan: [overview](milestone-14-overview.md),
 [architecture](milestone-14-architecture.md)
