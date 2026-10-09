@@ -13,11 +13,19 @@ use crate::domain::DeviceId;
 use crate::domain::RemoteAction;
 use ::iced::window;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingsPage {
+    #[default]
+    Discovery,
+    WakeOnLan,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenMainWindow,
     Navigate(PrimaryView),
     OpenSettings,
+    SelectSettingsPage(SettingsPage),
     MainWindowOpened(window::Id),
     SettingsWindowOpened(window::Id),
     WindowClosed(window::Id),
@@ -56,7 +64,6 @@ pub enum Message {
     WakeWifiChanged(String),
     WakeInterfaceSelected(WakeInterface),
     WakeInterfaceCleared,
-    SaveWakeConfiguration,
     TvAddressChanged(String),
     DiscoverTv,
     DiscoveryFinished {

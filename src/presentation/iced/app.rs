@@ -1,4 +1,4 @@
-use super::ui_message::{Message, Shortcut};
+use super::ui_message::{Message, SettingsPage, Shortcut};
 use super::view;
 use super::view_model::{rejection_message, ViewModel};
 use crate::application::device_repository::RepositoryError;
@@ -20,6 +20,7 @@ use ::iced::{event, window, Element, Event, Size, Subscription, Task, Theme};
 pub struct App {
     main_window: Option<window::Id>,
     settings_window: Option<window::Id>,
+    settings_page: SettingsPage,
     view_model: ViewModel,
     coordinator: TvControlCoordinator,
     tv_address: String,
@@ -43,6 +44,7 @@ impl App {
             Self {
                 main_window: None,
                 settings_window: None,
+                settings_page: SettingsPage::Discovery,
                 view_model,
                 coordinator,
                 tv_address: String::new(),
@@ -96,6 +98,10 @@ impl App {
             Message::OpenMainWindow => Task::none(),
             Message::Navigate(view) => {
                 self.view_model.select_view(view);
+                Task::none()
+            }
+            Message::SelectSettingsPage(page) => {
+                self.settings_page = page;
                 Task::none()
             }
             Message::OpenSettings if self.settings_window.is_none() => {
@@ -209,7 +215,6 @@ impl App {
                 self.wake_active = None;
                 self.auto_save_wake_configuration()
             }
-            Message::SaveWakeConfiguration => self.save_wake_configuration(true),
             Message::TvAddressChanged(value) => {
                 self.tv_address = value;
                 self.coordinator.address_changed();
@@ -259,6 +264,26 @@ impl App {
                 )
             }
             Message::UseCandidate(host) => {
+                let staged_wake = self
+                    .valid_wake_draft()
+                    .filter(|wake| wake.active_mac().is_some());
+                if let Some(id) = self
+                    .coordinator
+                    .saved_devices
+                    .iter()
+                    .find(|device| device.host == host)
+                    .map(|device| device.id)
+                {
+                    if let Ok(device) = self.coordinator.select_saved(id) {
+                        self.view_model
+                            .update_control_state(&self.coordinator.app_state);
+                        self.load_wake_draft(&device);
+                        if let Some(wake) = staged_wake {
+                            self.load_wake_configuration(&wake);
+                            let _ = self.auto_save_wake_configuration();
+                        }
+                    }
+                }
                 self.tv_address = host.as_str().to_owned();
                 self.update(Message::ProbeTv)
             }
@@ -346,6 +371,9 @@ impl App {
                 if self.coordinator.forget_pending.is_some() {
                     return Task::none();
                 }
+                let staged_wake = self
+                    .valid_wake_draft()
+                    .filter(|wake| wake.active_mac().is_some());
                 let Ok(device) = self.coordinator.select_saved(id) else {
                     return self.publish(
                         super::view_model::MessageSeverity::Warning,
@@ -358,7 +386,15 @@ impl App {
                     .update_control_state(&self.coordinator.app_state);
                 self.tv_address = device.host.as_str().to_owned();
                 self.load_wake_draft(&device);
-                Task::done(Message::ConnectSelected)
+                if let Some(wake) = staged_wake {
+                    self.load_wake_configuration(&wake);
+                    Task::batch([
+                        self.auto_save_wake_configuration(),
+                        Task::done(Message::ConnectSelected),
+                    ])
+                } else {
+                    Task::done(Message::ConnectSelected)
+                }
             }
             Message::SessionEvent {
                 generation,
@@ -434,20 +470,10 @@ impl App {
                 generation,
                 connection,
             } => {
-                if let Some(device) = self
-                    .coordinator
-                    .app_state
-                    .selected_device()
-                    .and_then(|id| {
-                        self.coordinator
-                            .saved_devices
-                            .iter()
-                            .find(|device| device.id == id)
-                    })
-                    .cloned()
-                {
-                    self.load_wake_draft(&device);
-                }
+                // A user can fill in Wake Configuration while pairing a newly
+                // discovered TV. Keep that valid draft and attach it once the
+                // pairing flow has created the saved TV record.
+                let save_wake_configuration = self.auto_save_wake_configuration();
                 let _ = self.sync_terminal_results();
                 self.view_model
                     .update_control_state(&self.coordinator.app_state);
@@ -457,6 +483,7 @@ impl App {
                 let observe = self.install_session(generation, connection);
                 Task::batch([
                     observe,
+                    save_wake_configuration,
                     self.publish(
                         super::view_model::MessageSeverity::Information,
                         super::view_model::MessageSource::SettingsWindow,
@@ -746,90 +773,58 @@ impl App {
     }
 
     fn load_wake_draft(&mut self, device: &crate::application::device_repository::SavedDevice) {
-        self.wake_wired = device
-            .wake
+        self.load_wake_configuration(&device.wake);
+    }
+
+    fn load_wake_configuration(&mut self, wake: &WakeConfiguration) {
+        self.wake_wired = wake
             .wired
             .map(|value| value.to_string())
             .unwrap_or_default();
-        self.wake_wifi = device
-            .wake
-            .wifi
-            .map(|value| value.to_string())
-            .unwrap_or_default();
-        self.wake_active = device.wake.active;
+        self.wake_wifi = wake.wifi.map(|value| value.to_string()).unwrap_or_default();
+        self.wake_active = wake.active;
+    }
+
+    fn valid_wake_draft(&self) -> Option<WakeConfiguration> {
+        let parse = |value: &str| {
+            if value.is_empty() {
+                Ok(None)
+            } else {
+                value.parse().map(Some)
+            }
+        };
+        let (Ok(wired), Ok(wifi)) = (parse(&self.wake_wired), parse(&self.wake_wifi)) else {
+            return None;
+        };
+        let wake = WakeConfiguration {
+            wired,
+            wifi,
+            active: self.wake_active,
+        };
+        if wake.active.is_some() && wake.active_mac().is_none() {
+            return None;
+        }
+        Some(wake)
     }
 
     fn auto_save_wake_configuration(&mut self) -> Task<Message> {
         if self.coordinator.app_state.selected_device().is_none() {
             return Task::none();
         }
-        let parse = |value: &str| {
-            if value.is_empty() {
-                Ok(None)
-            } else {
-                value.parse().map(Some)
-            }
-        };
-        let (Ok(wired), Ok(wifi)) = (parse(&self.wake_wired), parse(&self.wake_wifi)) else {
+        let Some(wake) = self.valid_wake_draft() else {
             return Task::none();
         };
-        let wake = WakeConfiguration {
-            wired,
-            wifi,
-            active: self.wake_active,
-        };
-        if wake.active.is_some() && wake.active_mac().is_none() {
-            return Task::none();
-        }
-        self.persist_wake_configuration(wake, false)
+        self.persist_wake_configuration(wake)
     }
 
-    fn save_wake_configuration(&mut self, announce: bool) -> Task<Message> {
-        let parse = |value: &str| {
-            if value.is_empty() {
-                Ok(None)
-            } else {
-                value.parse().map(Some)
-            }
-        };
-        let (Ok(wired), Ok(wifi)) = (parse(&self.wake_wired), parse(&self.wake_wifi)) else {
-            self.settings_status =
-                "Enter each MAC as six hexadecimal octets, for example 02:11:22:33:44:55."
-                    .to_owned();
-            return Task::none();
-        };
-        let wake = WakeConfiguration {
-            wired,
-            wifi,
-            active: self.wake_active,
-        };
-        if wake.active.is_some() && wake.active_mac().is_none() {
-            self.settings_status = "Enter a MAC for the selected Wake interface.".to_owned();
-            return Task::none();
-        }
-        self.persist_wake_configuration(wake, announce)
-    }
-
-    fn persist_wake_configuration(
-        &mut self,
-        wake: WakeConfiguration,
-        announce: bool,
-    ) -> Task<Message> {
+    fn persist_wake_configuration(&mut self, wake: WakeConfiguration) -> Task<Message> {
         let Ok(device) = self.coordinator.save_wake_configuration(wake) else {
             self.settings_status = "Could not save Wake configuration.".to_owned();
             return Task::none();
         };
         self.load_wake_draft(&device);
         self.settings_status = "Wake configuration saved.".to_owned();
-        if announce {
-            self.publish(
-                super::view_model::MessageSeverity::Information,
-                super::view_model::MessageSource::SettingsWindow,
-                "Wake configuration saved for the selected TV.",
-            )
-        } else {
-            Task::none()
-        }
+        Task::none()
     }
 
     fn pump_dispatch(&mut self) -> Task<Message> {
@@ -910,6 +905,7 @@ impl App {
     fn view(&self, window: window::Id) -> Element<'_, Message> {
         if self.settings_window == Some(window) {
             view::settings_window(view::SettingsView {
+                settings_page: self.settings_page,
                 address: &self.tv_address,
                 candidates: &self.coordinator.candidates,
                 saved_devices: &self.coordinator.saved_devices,
@@ -929,6 +925,7 @@ impl App {
                     .as_ref()
                     .and_then(|(_, observation)| observation.model.clone()),
                 status: &self.settings_status,
+                selected_id: self.coordinator.app_state.selected_device(),
                 selected_label: self
                     .coordinator
                     .app_state
@@ -1382,6 +1379,58 @@ mod tests {
             Some("02:11:22:33:44:55")
         );
         assert_eq!(app.view_model.messages().entries().len(), messages_before);
+    }
+
+    #[test]
+    fn valid_wired_mac_and_radio_selection_are_saved_automatically() {
+        let device = saved_device(crate::DeviceId::new(20));
+        let setup = Arc::new(FakeSetup::new(device.clone()));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(setup.clone());
+        app.coordinator.app_state.select_device(device.display());
+
+        let _ = app.update(Message::WakeWiredChanged("02:11:22:33:44:55".to_owned()));
+        let _ = app.update(Message::WakeInterfaceSelected(WakeInterface::Wired));
+
+        let saved = setup.device.lock().unwrap();
+        assert_eq!(saved.wake.active, Some(WakeInterface::Wired));
+        assert!(saved.wake.active_mac().is_some());
+        assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[test]
+    fn selecting_a_tv_saves_a_valid_wake_draft_entered_before_selection() {
+        let device = saved_device(crate::DeviceId::new(21));
+        let setup = Arc::new(FakeSetup::new(device.clone()));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(setup.clone());
+
+        let _ = app.update(Message::WakeWiredChanged("02:11:22:33:44:55".to_owned()));
+        let _ = app.update(Message::WakeInterfaceSelected(WakeInterface::Wired));
+        let _ = app.update(Message::SelectSaved(device.id));
+
+        let saved = setup.device.lock().unwrap();
+        assert_eq!(saved.wake.active, Some(WakeInterface::Wired));
+        assert!(saved.wake.active_mac().is_some());
+        assert!(app.coordinator.selected_wake_configured());
+    }
+
+    #[test]
+    fn choosing_a_matching_candidate_selects_its_saved_tv_for_wake_autosave() {
+        let device = saved_device(crate::DeviceId::new(22));
+        let setup = Arc::new(FakeSetup::new(device.clone()));
+        let (mut app, _) = App::new();
+        app.coordinator.service = Some(setup.clone());
+        app.coordinator.saved_devices.push(device.clone());
+
+        let _ = app.update(Message::UseCandidate(device.host.clone()));
+        let _ = app.update(Message::WakeWiredChanged("02:11:22:33:44:55".to_owned()));
+        let _ = app.update(Message::WakeInterfaceSelected(WakeInterface::Wired));
+
+        let saved = setup.device.lock().unwrap();
+        assert_eq!(app.coordinator.app_state.selected_device(), Some(device.id));
+        assert_eq!(saved.wake.active, Some(WakeInterface::Wired));
+        assert!(app.coordinator.selected_wake_configured());
     }
 
     #[tokio::test]
@@ -1909,6 +1958,16 @@ mod tests {
             app.view_model.primary_view(),
             super::super::view_model::PrimaryView::Remote
         );
+    }
+
+    #[test]
+    fn settings_sidebar_switches_between_discovery_and_wake_on_lan() {
+        let (mut app, _) = App::new();
+        assert_eq!(app.settings_page, SettingsPage::Discovery);
+
+        let _ = app.update(Message::SelectSettingsPage(SettingsPage::WakeOnLan));
+
+        assert_eq!(app.settings_page, SettingsPage::WakeOnLan);
     }
 
     #[test]

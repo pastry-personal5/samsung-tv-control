@@ -1,6 +1,6 @@
 use super::icons::Icon;
 use super::split_bar::SplitBar;
-use super::ui_message::Message;
+use super::ui_message::{Message, SettingsPage};
 use super::view_model::{feed_is_at_bottom, PrimaryView, RemoteControlViewState, ViewModel};
 use crate::application::tv_control_coordinator::{WakeFailure, WakeStage};
 use crate::application::wake::WakeInterface;
@@ -177,6 +177,40 @@ fn wake_choice_radio(
     ]
     .spacing(8)
     .align_y(Alignment::Center)
+    .into()
+}
+
+fn wake_choice_enabled(choice: WakeChoice, wired: &str, wifi: &str, forget_pending: bool) -> bool {
+    if forget_pending {
+        return false;
+    }
+
+    match choice {
+        WakeChoice::Wired => wired.parse::<crate::domain::MacAddress>().is_ok(),
+        WakeChoice::WiFi => wifi.parse::<crate::domain::MacAddress>().is_ok(),
+        WakeChoice::Disabled => true,
+    }
+}
+
+fn saved_tv_radio(
+    id: crate::DeviceId,
+    selected_id: Option<crate::DeviceId>,
+    enabled: bool,
+) -> Element<'static, Message> {
+    if enabled {
+        return radio("", id, selected_id, Message::SelectSaved)
+            .size(18)
+            .into();
+    }
+
+    text(if selected_id == Some(id) {
+        "◉"
+    } else {
+        "○"
+    })
+    .style(|_| ::iced::widget::text::Style {
+        color: Some(graphite(118)),
+    })
     .into()
 }
 
@@ -835,6 +869,7 @@ fn global_messages(view_model: &ViewModel) -> Element<'_, Message> {
 }
 
 pub struct SettingsView<'a> {
+    pub settings_page: SettingsPage,
     pub address: &'a str,
     pub candidates: &'a [crate::application::tv_address::TvHost],
     pub saved_devices: &'a [crate::application::device_repository::SavedDevice],
@@ -842,6 +877,7 @@ pub struct SettingsView<'a> {
     pub observed_name: Option<String>,
     pub observed_model: Option<String>,
     pub status: &'a str,
+    pub selected_id: Option<crate::DeviceId>,
     pub selected_label: Option<&'a str>,
     pub pairing_pending: bool,
     pub forget_pending: bool,
@@ -852,6 +888,7 @@ pub struct SettingsView<'a> {
 
 pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
     let SettingsView {
+        settings_page,
         address,
         candidates,
         saved_devices,
@@ -859,6 +896,7 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         observed_name,
         observed_model,
         status,
+        selected_id,
         selected_label,
         pairing_pending,
         forget_pending,
@@ -866,10 +904,22 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         wake_wifi,
         wake_active,
     } = options;
-    let sidebar = column![text("Settings").size(18), text("TV (current view)")]
-        .padding(16)
-        .spacing(10)
-        .width(150);
+    let sidebar = column![
+        text("Settings").size(18),
+        button("Discovery")
+            .on_press(Message::SelectSettingsPage(SettingsPage::Discovery))
+            .style(move |theme, status| {
+                sidebar_button_style(settings_page == SettingsPage::Discovery, theme, status)
+            }),
+        button("Wake on LAN")
+            .on_press(Message::SelectSettingsPage(SettingsPage::WakeOnLan))
+            .style(move |theme, status| {
+                sidebar_button_style(settings_page == SettingsPage::WakeOnLan, theme, status)
+            }),
+    ]
+    .padding(16)
+    .spacing(10)
+    .width(170);
 
     let selected = selected_label.unwrap_or("None");
     let has_fingerprint = fingerprint.is_some();
@@ -877,15 +927,72 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         .map(|value| format!("Observed certificate SHA-256: {value}"))
         .unwrap_or_else(|| "No certificate observed yet.".to_owned());
     let mut selected_content = column![text(format!("Current selection: {selected}"))].spacing(10);
-    for device in saved_devices {
-        selected_content = selected_content.push(
-            button(text(format!("Select saved TV: {}", device.label)))
-                .on_press_maybe((!forget_pending).then_some(Message::SelectSaved(device.id)))
-                .style(action_button_style),
-        );
+    if !saved_devices.is_empty() {
+        let header = row![
+            container(text("Select").size(13)).width(Length::Fixed(48.0)),
+            container(text("TV name").size(13)).width(Length::FillPortion(3)),
+            container(text("TV IP Address").size(13)).width(Length::FillPortion(2)),
+        ]
+        .align_y(Alignment::Center)
+        .spacing(8)
+        .padding([5, 8]);
+        let mut rows = column![header].spacing(2);
+        for device in saved_devices {
+            rows = rows.push(
+                row![
+                    container(saved_tv_radio(device.id, selected_id, !forget_pending))
+                        .width(Length::Fixed(48.0)),
+                    container(text(&device.label)).width(Length::FillPortion(3)),
+                    container(text(device.host.as_str())).width(Length::FillPortion(2)),
+                ]
+                .align_y(Alignment::Center)
+                .spacing(8)
+                .padding([6, 8]),
+            );
+        }
+        selected_content = selected_content
+            .push(text("Saved TVs").size(13))
+            .push(container(rows).style(message_feed_style));
     }
     if saved_devices.is_empty() {
         selected_content = selected_content.push(text("No saved TVs yet.").size(13));
+    }
+
+    if !candidates.is_empty() {
+        let header = row![
+            container(text("Select").size(13)).width(Length::Fixed(48.0)),
+            container(text("TV name").size(13)).width(Length::FillPortion(3)),
+            container(text("TV IP Address").size(13)).width(Length::FillPortion(2)),
+        ]
+        .align_y(Alignment::Center)
+        .spacing(8)
+        .padding([5, 8]);
+        let selected_candidate = candidates
+            .iter()
+            .position(|candidate| candidate.as_str() == address);
+        let mut rows = column![header].spacing(2);
+        for (index, candidate) in candidates.iter().enumerate() {
+            let target = candidate.clone();
+            rows = rows.push(
+                row![
+                    container(
+                        radio("", index, selected_candidate, move |_| {
+                            Message::UseCandidate(target.clone())
+                        })
+                        .size(18),
+                    )
+                    .width(Length::Fixed(48.0)),
+                    container(text("Candidate")).width(Length::FillPortion(3)),
+                    container(text(candidate.as_str())).width(Length::FillPortion(2)),
+                ]
+                .align_y(Alignment::Center)
+                .spacing(8)
+                .padding([6, 8]),
+            );
+        }
+        selected_content = selected_content
+            .push(text("Discovered candidates").size(13))
+            .push(container(rows).style(message_feed_style));
     }
 
     let mut pairing_content = column![
@@ -895,16 +1002,6 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
             .style(action_button_style),
     ]
     .spacing(10);
-    for candidate in candidates {
-        pairing_content = pairing_content.push(
-            button(text(format!(
-                "Unconfirmed candidate: {} — Probe",
-                candidate.as_str()
-            )))
-            .on_press(Message::UseCandidate(candidate.clone()))
-            .style(action_button_style),
-        );
-    }
     pairing_content = pairing_content
         .push(
             text_input("Local IP address or host name", address)
@@ -961,45 +1058,43 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                 "Wired",
                 WakeChoice::Wired,
                 WakeChoice::selected(wake_active),
-                selected_label.is_some()
-                    && !forget_pending
-                    && wake_wired.parse::<crate::domain::MacAddress>().is_ok(),
+                wake_choice_enabled(WakeChoice::Wired, wake_wired, wake_wifi, forget_pending),
             ),
             wake_choice_radio(
                 "Wi-Fi",
                 WakeChoice::WiFi,
                 WakeChoice::selected(wake_active),
-                selected_label.is_some()
-                    && !forget_pending
-                    && wake_wifi.parse::<crate::domain::MacAddress>().is_ok(),
+                wake_choice_enabled(WakeChoice::WiFi, wake_wired, wake_wifi, forget_pending),
             ),
             wake_choice_radio(
                 "Disabled",
                 WakeChoice::Disabled,
                 WakeChoice::selected(wake_active),
-                selected_label.is_some() && !forget_pending,
+                wake_choice_enabled(WakeChoice::Disabled, wake_wired, wake_wifi, forget_pending),
             ),
         ]
         .spacing(8),
-        button("Save Wake configuration")
-            .on_press_maybe(
-                selected_label
-                    .filter(|_| !forget_pending)
-                    .map(|_| Message::SaveWakeConfiguration)
-            )
-            .style(action_button_style),
     ]
     .spacing(10);
 
-    let main_content = column![
-        text("TV settings").size(26),
-        card("Selected TV", selected_content),
-        card("Discovery and Pairing", pairing_content),
-        card("Connection recovery", connection_content),
-        card("Wake Configuration", wake_content),
-        card("Guidance", text(status)),
-    ]
-    .spacing(14);
+    let main_content: Element<'_, Message> = match settings_page {
+        SettingsPage::Discovery => column![
+            text("TV Settings").size(26),
+            card("TV List", selected_content),
+            card("Discovery and Pairing", pairing_content),
+            card("Connection recovery", connection_content),
+            card("Guidance", text(status)),
+        ]
+        .spacing(14)
+        .into(),
+        SettingsPage::WakeOnLan => column![
+            text("Wake on LAN").size(26),
+            card("Wake Configuration", wake_content),
+            card("Guidance", text(status)),
+        ]
+        .spacing(14)
+        .into(),
+    };
     let main_pane = container(scrollable(main_content))
         .padding(20)
         .width(Length::Fill)
@@ -1049,5 +1144,15 @@ mod tests {
         for (index, icon) in icons.iter().enumerate() {
             assert!(!icons[..index].contains(icon));
         }
+    }
+
+    #[test]
+    fn wake_choices_unlock_from_their_valid_mac_without_a_saved_tv_selection() {
+        let wired = "02:11:22:33:44:55";
+
+        assert!(wake_choice_enabled(WakeChoice::Wired, wired, "", false));
+        assert!(!wake_choice_enabled(WakeChoice::WiFi, wired, "", false));
+        assert!(wake_choice_enabled(WakeChoice::Disabled, wired, "", false));
+        assert!(!wake_choice_enabled(WakeChoice::Wired, wired, "", true));
     }
 }
