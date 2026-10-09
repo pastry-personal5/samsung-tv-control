@@ -1,176 +1,41 @@
 # Phase 1: Foundation and First Live Control
 
 Status: Active
-Goal: Establish the product and architecture foundations, then connect the
-Rust macOS remote to its first live TV.
+
+Goal: Establish the macOS app, trusted local control, and usable Power and
+Remote views.
 
 ## Exit criteria
 
-- Initial research records the supported-TV, connection, pairing, macOS, and
-  privacy constraints that affect the product.
-- Initial architecture identifies the proposed Rust crate structure, macOS UI
-  boundary, device-communication boundary, and unresolved decisions.
-- Canonical UX terms, information architecture, and the planned GUI are
-  documented and ready to guide implementation.
-- The presentation shell consumes typed application state and command contracts
-  without importing Samsung protocol details or performing device I/O.
-- The first live path connects to an already-on TV through confirmed trust and
-  Pairing, sends supported remote actions, and reports honest request outcomes.
+- Research, architecture, UX terms, and implementation boundaries are recorded.
+- The app pairs with a TV over the secure local endpoint and sends supported
+  remote requests with honest outcomes.
+- Wake and GUI refinements pass their remaining acceptance checks.
 
 ## Milestones
 
-### P1-M1: Initial Research
+Completed plans are retained in the [archive](../archive/phase-1/).
 
-Status: Done
-Goal: Gather and record the constraints, risks, and requirements that shape the
-first implementation.  
-Plan: [overview](milestone-01-overview.md),
-[architecture](milestone-01-architecture.md)
-Notes: Research and platform constraints are summarized in
-[initial product and platform research](../research/p1-m1-initial-research.md).
+| ID | Milestone | Status | Record |
+| --- | --- | --- | --- |
+| P1-M1 | Initial Research | Done | [Overview](../archive/phase-1/milestone-01-overview.md) · [Architecture](../archive/phase-1/milestone-01-architecture.md) |
+| P1-M2 | Initial Architecture | Done | [Overview](../archive/phase-1/milestone-02-overview.md) · [Architecture](../archive/phase-1/milestone-02-architecture.md) |
+| P1-M3 | UX Terms, Information Architecture, and GUI | Done | [Overview](../archive/phase-1/milestone-03-overview.md) · [Architecture](../archive/phase-1/milestone-03-architecture.md) |
+| P1-M4 | Iced Application Shell and Navigation | Done | [Overview](../archive/phase-1/milestone-04-overview.md) · [Architecture](../archive/phase-1/milestone-04-architecture.md) |
+| P1-M5 | Typed Control Contracts | Done | [Overview](../archive/phase-1/milestone-05-overview.md) · [Architecture](../archive/phase-1/milestone-05-architecture.md) |
+| P1-M6 | No-Selected-TV Control Gate | Done | [Overview](../archive/phase-1/milestone-06-overview.md) · [Architecture](../archive/phase-1/milestone-06-architecture.md) |
+| P1-M7 | In-Memory TV Selection | Done | [Overview](../archive/phase-1/milestone-07-overview.md) · [Architecture](../archive/phase-1/milestone-07-architecture.md) |
+| P1-M8 | Connection State Projection | Done | [Overview](../archive/phase-1/milestone-08-overview.md) · [Architecture](../archive/phase-1/milestone-08-architecture.md) |
+| P1-M9 | Remote Command Admission Policy | Done | [Overview](../archive/phase-1/milestone-09-overview.md) · [Architecture](../archive/phase-1/milestone-09-architecture.md) |
+| P1-M10 | First Live TV Connection and Control | Done | [Overview](../archive/phase-1/milestone-10-overview.md) · [Architecture](../archive/phase-1/milestone-10-architecture.md) · [Hardware matrix](../archive/phase-1/milestone-10-hardware-matrix.md) |
+| P1-M11 | Clean Architecture Refactoring | Done | [Overview](../archive/phase-1/milestone-11-overview.md) · [Architecture](../archive/phase-1/milestone-11-architecture.md) |
+| P1-M12 | Dark GUI and Focused Navigation | Done | [Overview](../archive/phase-1/milestone-12-overview.md) · [Architecture](../archive/phase-1/milestone-12-architecture.md) |
+| P1-M13 | Wake-on-LAN and Toggle Power | Active | [Overview](milestone-13-overview.md) · [Architecture](milestone-13-architecture.md) |
+| P1-M14 | Remote and Settings GUI Refinement | Active | [Overview](milestone-14-overview.md) · [Architecture](milestone-14-architecture.md) |
 
-### P1-M2: Initial Architecture
-
-Status: Done
-Goal: Define the initial software architecture using the findings from P1-M1.  
-Plan: [overview](milestone-02-overview.md),
-[architecture](milestone-02-architecture.md)
-
-### P1-M3: UX Terms, Information Architecture, and GUI
-
-Status: Done
-Goal: Define shared UX language, information hierarchy, and the first planned
-GUI layout before implementation.
-Plan: [overview](milestone-03-overview.md),
-[architecture](milestone-03-architecture.md)
-
-### P1-M4: Iced Application Shell and Navigation
-
-Status: Done
-Goal: Deliver a launchable Iced shell with the agreed navigation, main/settings
-windows, and shared message and activity regions.
-Plan: [overview](milestone-04-overview.md),
-[architecture](milestone-04-architecture.md)
-Notes: Native macOS acceptance verified the routes, Settings lifecycle, and
-shared panes. The owner revised shell-level accessibility acceptance to
-keyboard shortcuts and visible disabled reasons while retaining Iced; native
-screen-reader support remains a product follow-up.
-
-### P1-M5: Typed Control Contracts
-
-Status: Done
-Goal: Establish the small, pure domain and application command vocabulary that
-the presentation layer will use for remote controls.
-Plan: [overview](milestone-05-overview.md),
-[architecture](milestone-05-architecture.md)
-Notes: Implemented `DeviceId` (opaque identifier), `RemoteAction` (finite semantic enum), and `SendRemoteAction` (typed command). All validation gates pass.
-
-### P1-M6: No-Selected-TV Control Gate
-
-Status: Done
-Goal: Project an explicit no-selected-TV application state into the existing
-shell so controls are disabled by policy rather than a presentation-only
-placeholder.
-Plan: [overview](milestone-06-overview.md),
-[architecture](milestone-06-architecture.md)
-Notes: The application now rejects typed requests with their original target
-preserved, and the shell projects the typed no-TV reason without a placeholder
-device ID. All Cargo gates passed (33 tests).
-
-### P1-M7: In-Memory TV Selection
-
-Status: Done
-Goal: Let the application select and clear a known device in session state,
-with a generation change that prevents stale work from crossing selections.
-Plan: [overview](milestone-07-overview.md),
-[architecture](milestone-07-architecture.md)
-Notes: Safe display data and a generation-scoped in-memory selection are now
-projected into Iced; controls remain disabled until lifecycle facts exist.
-
-### P1-M8: Connection State Projection
-
-Status: Done
-Goal: Represent pairing and connection readiness as distinct application
-states and project them into the presentation layer without claiming live I/O.
-Plan: [overview](milestone-08-overview.md),
-[architecture](milestone-08-architecture.md)
-Notes: Generation-scoped pure lifecycle updates now project independent pairing
-and connection statuses; selection changes reset both facts.
-
-### P1-M9: Remote Command Admission Policy
-
-Status: Done
-Goal: Apply selected-device, pairing, connection, and known-action policy to
-typed remote requests before any transport dispatch exists.
-Plan: [overview](milestone-09-overview.md),
-[architecture](milestone-09-architecture.md)
-Notes: A pure policy now returns typed rejections or an explicitly non-sending
-eligible result; Iced availability derives from the same state.
-
-### P1-M10: First Live TV Connection and Control
-
-Status: Done
-Goal: Connect the app to the owner's already powered-on TV and deliver the
-first trusted, observable end-to-end remote-control path.
-Plan: [overview](milestone-10-overview.md),
-[architecture](milestone-10-architecture.md)
-Notes: Includes hardware protocol decisions, TV setup and Pairing, trusted
-persistence, live session, bounded dispatch, UI outcomes, and native acceptance.
-The owner chose secure port 8002 only, deferred Power Toggle and wake, and
-chose local signing for the test bundle. Initial secure endpoint and consent
-probes passed. The owner verified signed-bundle Pairing, saved-token reconnect,
-and all ten current keys. Discovery fallback, native permission recovery, and
-failure/switching checks have deferred human verification without a date. The
-owner closed M10 with these limits recorded; the latency target remains
-unmeasured. Source/app/text features follow later.
-
-### P1-M11: Clean Architecture Refactoring
-
-Status: Done
-Goal: Move live-control orchestration from Iced to the application layer,
-clarify names and tests, and write saved action values as `Enter`. The owner
-does not require old saved records or older app builds to remain readable.
-Plan: [overview](milestone-11-overview.md),
-[architecture](milestone-11-architecture.md)
-Notes: The application coordinator now owns the live-control workflow, and
-`main.rs` composes its adapters. New saved action values use `Enter`; old
-`Select` records are not read or migrated. All Cargo gates pass (97 tests).
-M10's deferred hardware checks remain deferred.
-
-### P1-M12: Dark GUI, Focused Navigation, and Simplified TV Settings
-
-Status: Done
-Goal: Apply the approved always-dark graphite interface, focused icon-led
-navigation, a split-and-scroll Global Messages Pane, larger minimum window
-sizes, and retire per-key manual verification because the standard actions are
-verified.
-Plan: [overview](milestone-12-overview.md),
-[architecture](milestone-12-architecture.md)
-Notes: Delivered the always-dark Iced presentation, approved minimum window
-sizes, streamlined Sidebar and Remote View chrome, draggable Global Messages
-split bar, scrollable semantic message rows, and removal of Activity View and
-manual per-key verification. Current and legacy `verified_actions` data is
-ignored on load and removed on a later save. Cargo format, Clippy, and test
-gates pass.
-
-### P1-M13: Wake-on-LAN and Toggle Power
-
-Status: Implemented; live-TV Wake verification deferred
-Goal: Add selected-MAC Wake-on-LAN in Power View. Keep Power Toggle in Remote
-View: send `KEY_POWER` for a live paired session, or open Power View and try a
-short trusted connection before Wake when disconnected.
-Plan: [overview](milestone-13-overview.md),
-[architecture](milestone-13-architecture.md)
-Notes: Power View, per-TV Wake configuration, one local-route WoL packet,
-bounded trusted reconnect, and connected-only `KEY_POWER` are implemented.
-The signed native bundle was inspected for Sidebar order and Power View.
-Physical Wake, permission recovery, and latency remain unverified.
-
-### P1-M14: Remote and Settings GUI Refinement
-
-Status: Planned
-Goal: Add a compact bitmap-led Sidebar with hover feedback, center each titled
-Main Pane view box around grouped controls, and refine TV Settings into setup
-cards without adding new remote capabilities.
-Plan: [overview](milestone-14-overview.md),
-[architecture](milestone-14-architecture.md)
+M13 is implemented while physical Wake, permission recovery, and latency
+verification remain deferred. M14 implementation is in place; full native
+visual, focus, and Play/Pause hardware checks remain open. Work proceeded on
+M14 while those M13 checks awaited hardware review. M10 was closed by the owner
+with its deferred checks recorded in the hardware matrix. The
+[changelog](changelog.md) preserves decisions and acceptance history.

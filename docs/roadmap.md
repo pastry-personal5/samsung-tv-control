@@ -6,7 +6,6 @@
 
 ## Product follow-up
 
-- Before release, provide native macOS keyboard focus and screen-reader control
-  names for the Iced UI. P1-M4 verifies shell shortcuts and visible disabled
-  reasons; stock Iced 0.14 controls were absent from the macOS accessibility
-  tree during native review.
+- Before release, verify native keyboard focus and screen-reader control names,
+  including the visual remote's pointer-only regions. See the
+  [GUI specification](ux-gui.md) for the current limitation.

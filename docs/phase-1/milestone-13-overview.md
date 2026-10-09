@@ -1,6 +1,8 @@
 # P1-M13: Wake-on-LAN and Toggle Power
 
-Status: Implemented; live-TV Wake verification deferred
+Status: Active
+
+Implementation complete; live-TV Wake verification deferred.
 
 ## Goal
 
@@ -12,9 +14,9 @@ the flow starts Wake when its configuration permits.
 
 ## User journey
 
-1. In TV Settings, the user enters optional wired and Wi-Fi MAC addresses,
-   then chooses one configured address as the active wake interface. The
-   setting is saved before it is reported as usable.
+1. In Settings > Wake on LAN, the user enters optional wired and Wi-Fi MAC
+   addresses, then chooses one configured address as the active wake interface.
+   The setting is saved before it is reported as usable.
 2. The Sidebar places Power immediately above Remote. Selecting Power opens
    Power View with Wake Steps, a dedicated Wake control, and Power Toggle.
    Without a valid active MAC, Wake is disabled with an explanation.
@@ -72,6 +74,8 @@ the flow starts Wake when its configuration permits.
 - [x] Wake states remain understandable without color or animation.
 - [x] Deterministic tests and documented Cargo gates pass; hardware evidence,
   if gathered, is sanitized and does not claim unmeasured wake latency.
+- [ ] Physical Wake, macOS Local Network permission recovery, and time to a
+  usable remote connection receive hardware acceptance.
 
 Live-TV Wake, macOS Local Network permission recovery, and measured time to
 usable remote connection have not been verified on hardware. A successful UDP
@@ -80,4 +84,4 @@ send proves only that the packet was handed to the local network stack.
 ## References
 
 - [Architecture](milestone-13-architecture.md)
-- [Wake-on-LAN research](../research/samsung-tv-wake-on-lan.md)
+- [Wake-on-LAN research](../archive/research/samsung-tv-wake-on-lan.md)

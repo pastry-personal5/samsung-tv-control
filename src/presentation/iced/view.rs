@@ -315,10 +315,10 @@ fn titled_frame(
     .width(Length::Fill)
     .style(box_style);
 
-    match max_width {
-        Some(width) => frame.max_width(width).into(),
-        None => frame.into(),
-    }
+    container(frame.max_width(max_width.unwrap_or(VIEW_BOX_WIDTH)))
+        .center_x(Length::Fill)
+        .padding([18, 22])
+        .into()
 }
 
 pub fn main_window(

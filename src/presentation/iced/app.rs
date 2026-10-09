@@ -107,14 +107,7 @@ impl App {
             Message::OpenSettings if self.settings_window.is_none() => {
                 let (settings_window, open) = window::open(settings_window_settings());
                 self.settings_window = Some(settings_window);
-                Task::batch([
-                    open.map(Message::SettingsWindowOpened),
-                    self.publish(
-                        super::view_model::MessageSeverity::Information,
-                        super::view_model::MessageSource::MainWindow,
-                        "Opened Settings.",
-                    ),
-                ])
+                open.map(Message::SettingsWindowOpened)
             }
             Message::OpenSettings => Task::none(),
             Message::MainWindowOpened(_) => Task::none(),
@@ -122,11 +115,7 @@ impl App {
             Message::WindowClosed(id) if self.main_window == Some(id) => ::iced::exit(),
             Message::WindowClosed(id) if self.settings_window == Some(id) => {
                 self.settings_window = None;
-                self.publish(
-                    super::view_model::MessageSeverity::Information,
-                    super::view_model::MessageSource::SettingsWindow,
-                    "Closed Settings.",
-                )
+                Task::none()
             }
             Message::WindowClosed(_) => Task::none(),
             Message::ResizeMessages(height) => {
@@ -507,8 +496,7 @@ impl App {
                 self.view_model
                     .update_control_state(&self.coordinator.app_state);
                 self.settings_status =
-                    "Paired and connected. Verify supported keys before using Remote View."
-                        .to_owned();
+                    "Paired and connected. Remote controls are ready.".to_owned();
                 let observe = self.install_session(generation, connection);
                 Task::batch([
                     observe,
@@ -1852,7 +1840,7 @@ mod tests {
     }
 
     #[test]
-    fn closing_settings_preserves_main_navigation_and_message_state() {
+    fn opening_and_closing_settings_preserves_main_navigation_and_message_state() {
         let (mut app, _) = App::new();
         let _ = app.update(Message::Navigate(
             super::super::view_model::PrimaryView::Apps,
@@ -1871,7 +1859,9 @@ mod tests {
             app.view_model.primary_view(),
             super::super::view_model::PrimaryView::Apps
         );
-        assert_eq!(app.view_model.messages().entries().len(), 3);
+        let entries = app.view_model.messages().entries();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].text, "A safe presentation message");
     }
 
     #[test]

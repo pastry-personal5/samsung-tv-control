@@ -4,7 +4,7 @@ use crate::application::tv_control_coordinator::WakeStage;
 use crate::{RemoteAction, SendRemoteAction};
 use iced::mouse;
 use iced::widget::{canvas, image, Canvas};
-use iced::{Element, Length, Point, Rectangle, Renderer, Size, Theme};
+use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
 use std::sync::OnceLock;
 
 const IMAGE_WIDTH: f32 = 1024.0;
@@ -96,7 +96,7 @@ impl canvas::Program<Message> for RemoteImage {
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
-        _cursor: mouse::Cursor,
+        cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let scale = bounds.height / IMAGE_HEIGHT;
@@ -107,6 +107,31 @@ impl canvas::Program<Message> for RemoteImage {
                 Rectangle::new(Point::new(left, 0.0), Size::new(image_width, bounds.height)),
                 canvas::Image::new(remote_handle().clone()),
             );
+            for (action, x, y, radius) in CONTROL_CENTERS {
+                if !self.enabled(action) {
+                    frame.fill(
+                        &canvas::Path::circle(
+                            Point::new(left + x * scale, y * scale),
+                            radius * scale,
+                        ),
+                        Color::from_rgba8(6, 9, 12, 0.58),
+                    );
+                }
+            }
+            if let Some(action) = self.action_at(bounds, cursor) {
+                if let Some((_, x, y, radius)) = CONTROL_CENTERS
+                    .iter()
+                    .find(|(candidate, _, _, _)| *candidate == action)
+                {
+                    frame.fill(
+                        &canvas::Path::circle(
+                            Point::new(left + x * scale, y * scale),
+                            radius * scale,
+                        ),
+                        Color::from_rgba8(91, 166, 224, 0.25),
+                    );
+                }
+            }
         });
         vec![frame.into_geometry()]
     }
@@ -141,6 +166,21 @@ fn source_position(position: Point, bounds: Size) -> Point {
 fn in_circle(point: Point, x: f32, y: f32, radius: f32) -> bool {
     (point.x - x).powi(2) + (point.y - y).powi(2) <= radius.powi(2)
 }
+
+const CONTROL_CENTERS: [(RemoteAction, f32, f32, f32); 12] = [
+    (RemoteAction::PowerToggle, 512.0, 184.0, 67.0),
+    (RemoteAction::Up, 512.0, 341.0, 57.0),
+    (RemoteAction::Left, 370.0, 483.0, 57.0),
+    (RemoteAction::Enter, 512.0, 483.0, 103.0),
+    (RemoteAction::Right, 654.0, 483.0, 57.0),
+    (RemoteAction::Down, 512.0, 625.0, 57.0),
+    (RemoteAction::Back, 410.0, 747.0, 66.0),
+    (RemoteAction::Home, 614.0, 747.0, 66.0),
+    (RemoteAction::PlayPause, 410.0, 899.0, 66.0),
+    (RemoteAction::Mute, 410.0, 1060.0, 66.0),
+    (RemoteAction::VolumeUp, 614.0, 899.0, 66.0),
+    (RemoteAction::VolumeDown, 614.0, 1060.0, 66.0),
+];
 
 fn hit_test(point: Point) -> Option<RemoteAction> {
     use RemoteAction as Action;
@@ -199,6 +239,24 @@ fn hit_test(point: Point) -> Option<RemoteAction> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ControlState;
+
+    #[test]
+    fn no_selected_tv_disables_every_picture_hotspot() {
+        let remote = RemoteImage {
+            controls: RemoteControlViewState::from_application_state(&ControlState::none()),
+            wake_stage: WakeStage::Idle,
+            wake_configured: false,
+        };
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(DISPLAY_WIDTH, DISPLAY_HEIGHT));
+        let scale = DISPLAY_HEIGHT / IMAGE_HEIGHT;
+        let left = (DISPLAY_WIDTH - IMAGE_WIDTH * scale) / 2.0;
+        for (action, x, y, _) in CONTROL_CENTERS {
+            let cursor = mouse::Cursor::Available(Point::new(left + x * scale, y * scale));
+            assert!(!remote.enabled(action));
+            assert_eq!(remote.action_at(bounds, cursor), None);
+        }
+    }
 
     #[test]
     fn every_visible_control_has_a_distinct_hotspot() {

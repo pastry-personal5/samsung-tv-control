@@ -2,119 +2,90 @@
 
 Status: Active
 
-This is the canonical vocabulary for Samsung TV Remote. Product documentation,
-interface labels, accessibility descriptions, and implementation-facing UI
-names should use these terms consistently. If a new term is needed, define it
-here before using it elsewhere.
+This is the canonical vocabulary for the current Samsung TV Remote interface.
+The [information architecture](ux-information-architecture.md) owns placement;
+the [GUI specification](ux-gui.md) owns visible behavior. Proposed changes to
+setup and Wake live in the
+[research note](research/discovery-pairing-wake-ux.md).
 
-## Window and navigation
+## Windows and navigation
 
-| Term | Meaning and usage |
+| Term | Meaning |
 | --- | --- |
-| **Sidebar** | The left-hand part of the main app window. It contains navigation items and the icon-only Settings button at the bottom. Do not place the product name, a toolbar heading, or a shortcut legend here. |
-| **Main Pane** | The right-hand part of the app window. It displays the current view. |
-| **Remote View** | The default Main Pane view containing the remote controls. |
-| **Sources View** | The Main Pane view for selecting a TV source or opening the TV's source chooser. |
-| **Apps View** | The Main Pane view for browsing and launching apps reported by the Selected TV. |
-| **Text Input View** | The Main Pane view for sending text to a focused TV text field when supported. |
-| **Global Messages Pane** | The resizable, vertically scrollable pane in the lower part of the main app's Main Pane. It shows concise user-relevant messages from the main window and Settings Window in time order, with the newest message at the bottom. Each row has a fixed-width severity column and a message-content column; do not show sequence numbers or idle follow-state text. |
-| **Messages split bar** | The horizontal draggable divider immediately above the Global Messages Pane. It changes the pane height within its supported bounds. |
-| **Settings button** | The icon-only button at the bottom of the Sidebar that opens the separate Settings Window. Its accessible name and tooltip are “Settings”; its shortcut is ⌘,. |
-| **Sources** | Sidebar item that opens Sources View. |
-| **Apps** | Sidebar item that opens Apps View. |
-| **Text Input** | Sidebar item that opens Text Input View. |
-| **Settings Window** | The separate app window for app configuration and TV selection. It has its own Settings Sidebar and Settings Main Pane. |
-| **Settings Sidebar** | The navigation sidebar inside the Settings Window. Its first item is TV. Other items are TBD. |
-| **Settings Main Pane** | The content area to the right of the Settings Sidebar. It shows the selected settings page. |
-| **TV settings** | The Settings Window page opened by selecting the TV item in the Settings Sidebar. |
-| **Settings page** | A named page in the Settings Main Pane. Use **TV settings** for the current page; do not call a main-window view a settings page. |
-| **TV Selection Table** | The table in TV settings that lists Saved TVs and TVs found by the latest discovery scan, each with a radio button. Hide it when there are no rows. |
-| **Discovered TV** | A TV found on the local network that has not yet been saved as a trusted TV. |
-| **Discover TVs** | The action that searches the local network for compatible TVs. Use this verb label for the discovery button. |
-| **Enter TV Address** | The manual host-entry action offered when discovery is unavailable or finds no TV. |
-| **Device** | A saved app record for a TV, including its local identity and connection preferences. |
-| **Saved TV** | A TV whose trusted device record has been saved by the app. |
-| **Selected TV** | The TV currently targeted by the Remote View. Say “TV” in user-facing text; use “device” for saved app data and internal concepts. |
+| **Sidebar** | The icon rail at the left of the main window. Its order is Power, Remote, Sources, Apps, Text Input; the Settings button is anchored at the bottom. |
+| **Main Pane** | The main window area to the right of the Sidebar. It holds one primary view above the Global Messages Pane. |
+| **Power View** | The primary view for Wake progress and power actions. |
+| **Remote View** | The default primary view, containing the visual remote image. |
+| **Sources View**, **Apps View**, **Text Input View** | Named primary destinations. They are placeholders in the current release. |
+| **Settings button** | The icon-only Sidebar control that opens the separate Settings Window. Its tooltip is “Settings”; the shortcut is ⌘,. |
+| **Settings Window** | The separate window for selecting and setting up a TV. |
+| **Settings Sidebar** | The Settings Window navigation, with Discovery and Wake on LAN pages. |
+| **Settings Main Pane** | The content area beside the Settings Sidebar. |
+| **Discovery page** | Settings page for saved TVs, discovery, manual entry, checking, pairing, and connection recovery. |
+| **Wake on LAN page** | Settings page for a selected TV's wired and Wi-Fi MAC addresses and active Wake interface. |
+| **Global Messages Pane** | The resizable, scrollable, session-only feed below the primary view. It receives user-relevant outcomes from both windows, newest at the bottom. |
+| **Messages split bar** | The draggable divider above the Global Messages Pane. |
 
-## Remote controls
+## TVs and setup
 
-| Term | Meaning and usage |
+| Term | Meaning |
 | --- | --- |
-| **Power Toggle** | A control that requests a power toggle. Do not describe it as a confirmed power state or as Power Off. |
-| **Wake** | A dedicated Wake-on-LAN control. It sends one wake attempt for the selected TV's configured active MAC and completes only when the paired remote channel becomes usable. |
-| **Wake Steps** | The persistent, non-interactive Power View component that shows Wake configuration, magic-packet, reconnection, and remote-ready progress. |
-| **Directional Pad** | The grouped Up, Left, Right, and Down controls arranged around Enter. |
-| **Up**, **Left**, **Right**, **Down** | Directional Pad actions. |
-| **Enter** | The center Directional Pad action. It confirms or selects the focused TV item; do not label it Select or OK in the GUI. |
-| **Back** | The action that requests the TV's Back command. |
-| **Home** | The action that requests the TV's Home command. |
-| **Volume Slider** | An interactive control for requesting an exact volume level when the TV supports it. |
-| **Mute** | Toggles the TV's mute state. |
-| **Volume Down**, **Volume Up** | Step controls that request a decrease or increase in TV volume. |
+| **Device** | The app's saved record for a TV, including its local identity and preferences. Use “TV” in user-facing copy. |
+| **Saved TV** | A TV with a saved trusted device record. A saved TV can be disconnected. |
+| **Selected TV** | The saved TV currently targeted by the app. Selecting a candidate does not make it the Selected TV. |
+| **Candidate** | An unsaved local address supplied by discovery or manual entry. Discovery alone does not establish identity or trust. |
+| **Discover TVs** | Search the local network for TV candidates. |
+| **Check TV** | Probe the chosen host's secure endpoint and show the observed certificate SHA-256, plus name/model when available. Checking does not pair. |
+| **Pair** | Request trust for a checked candidate and wait for approval on the physical TV. A successful pair saves the TV and makes it the Selected TV. |
+| **Re-pair** | Renew trust for a checked Saved TV when its existing pairing needs attention. |
+| **Retry Connection** | Try the saved trusted remote connection again; it does not create a new pairing. |
+| **Connection** | The current network session with a Saved TV. Pairing and Connection are separate states. |
+
+## Controls and outcomes
+
+| Term | Meaning |
+| --- | --- |
+| **Power Toggle** | A request to toggle power through a live paired remote. From a disconnected Remote View, it opens Power View and first checks for a trusted connection; Wake may follow if configured and unreachable. It does not indicate measured power state. |
+| **Wake** | A deliberate attempt to send one magic packet to the Selected TV's configured active MAC and wait for paired remote readiness. Packet delivery and physical panel state are not confirmed by this action. |
+| **Wake Steps** | Non-interactive Power View progress for configuration, packet sending, reconnecting, and remote readiness. |
+| **Directional Pad** | Up, Left, Right, and Down around Enter. |
+| **Enter** | Confirm the focused TV item; use Enter rather than Select or OK for this action. |
+| **Back**, **Home** | TV navigation actions. |
+| **Play/Pause** | The new visual remote face. It currently sends Samsung KEY_PLAY. Pause behavior is unverified, so do not describe it as a confirmed toggle. |
+| **Mute**, **Volume Down**, **Volume Up** | Mute toggle and step volume requests. There is no exact-volume slider. |
+| **Request outcome** | Whether a command was rejected, pending, sent, failed, or uncertain. It does not itself describe the TV's resulting state. |
+| **Observed TV state** | A power, source, mute, or volume reading actually reported by the TV. Show freshness when relevant. |
+| **Unavailable** | An action cannot currently be used; explain the known reason. |
+| **Unsupported** | The TV is known not to support an action. Unknown support is not the same as unsupported. |
 
 ## Keyboard shortcuts
 
-These are the owner-approved action and shortcut pairs. A Remote View shortcut
-works only while Remote View is active in the main window. The app ignores
-repeated key presses and does not send a shortcut when a text field or other
-control has captured the key.
+These owner-approved shortcuts remain active in Remote View even though the
+visual remote has no “Keyboard controls” panel. They are ignored when another
+control captures the key and on key repeat. The visual remote's image regions
+themselves are pointer-only.
 
-| Canonical action | Keyboard shortcut(s) |
+| Action | Shortcut |
 | --- | --- |
-| **Up** | ↑ |
-| **Down** | ↓ |
-| **Left** | ← |
-| **Right** | → |
-| **Enter** | Return / Enter |
-| **Back** | Esc |
-| **Home** | Home |
-| **Mute** | M |
-| **Volume Down** | `-` (hyphen) |
-| **Volume Up** | `+`, including Shift+= on a MacBook Pro keyboard |
+| Up / Down / Left / Right | ↑ / ↓ / ← / → |
+| Enter | Return or Enter |
+| Back | Esc |
+| Home | Home |
+| Mute | M |
+| Volume Down / Volume Up | Hyphen / +, including Shift+= |
+| Power View / Remote View / Sources View / Apps View / Text Input View | ⌘1 / ⌘2 / ⌘3 / ⌘4 / ⌘5 |
+| Open Settings Window | ⌘, |
 
-The following shortcuts navigate the app. View selection and pane resizing
-apply to the main window; opening Settings also works from the Settings Window.
+Power Toggle and Play/Pause have no keyboard shortcut in this milestone. New
+shortcuts require an owner decision before implementation.
 
-| Canonical action | Keyboard shortcut(s) |
-| --- | --- |
-| **Power View** | ⌘1 |
-| **Remote View** | ⌘2 |
-| **Sources View** | ⌘3 |
-| **Apps View** | ⌘4 |
-| **Text Input View** | ⌘5 |
-| Open **Settings Window** | ⌘, |
+## Copy rules
 
-**Power Toggle** and **Volume Slider** have no keyboard shortcut in this
-milestone.
-
-## Device and capability states
-
-| Term | Meaning and usage |
-| --- | --- |
-| **Pairing** | The TV approval and credential exchange needed to establish trust. Pairing is distinct from an active connection. |
-| **TV Identity Confirmation** | The user's confirmation that a discovered TV is the intended TV, based on the identity details shown by the app. It is separate from approving the pairing prompt on the TV. |
-| **Connection** | The current network session between the app and a TV. A paired TV may be disconnected. |
-| **Request outcome** | What happened to an app request: rejected, pending, not sent, sent, confirmed by the TV, or uncertain. It does not by itself say what the TV is currently doing. |
-| **Observed TV state** | A power, source, mute, or volume reading that the TV actually reported; show its freshness when relevant. |
-| **Unavailable** | An operation or control cannot currently be used. Explain why when the reason is known. |
-| **Unsupported** | The selected TV is known not to support an operation. Do not use this when support is merely unknown. |
-| **Unknown support** | The app has not established whether the selected TV supports an operation. Avoid claiming it is unsupported. |
-
-## Writing rules
-
-- Use the exact capitalized terms above for named regions and controls.
-- Prefer “TV” in user-facing text and “device” when referring to the saved
-  record or internal identity.
-- Describe commands as requests unless the TV confirms the resulting state.
-- Distinguish pairing state, connection state, and operation support; they are
-  separate facts.
-- Use **Settings Sidebar** and **Settings Main Pane** only for the Settings
-  Window. Use **Sidebar** and **Main Pane** for the main app window.
-- Use **Settings button** for the main-window icon control and **Settings
-  Window** for the separate window. Do not call the icon control “Main
-  Toolbar” or add its shortcut to its visible label.
-- Interview the owner before adding or changing any keyboard shortcut. Record
-  the approved action and key pair in this document before implementation.
-
-See [planned information architecture](planned-information-architecture.md)
-and [planned GUI](ux-gui.md) for the hierarchy and control layout.
+- Use the exact names above for named regions and actions. Use “TV” for the
+  user-facing object and “device” for its stored record.
+- Treat a discovered address, a checked endpoint, a paired TV, and a connected
+  session as different facts.
+- Describe actions as requests until the TV reports a resulting state. “Remote
+  ready” means a paired channel is usable, not that the panel is visibly on.
+- Keep routine Settings Window opening and closing out of Global Messages. Show
+  user-relevant setup, connection, and command outcomes there.

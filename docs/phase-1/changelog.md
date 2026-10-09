@@ -4,6 +4,44 @@ Status: Active
 
 ## Entries
 
+- 2026-10-10 — Consolidated current documentation: shortened the root guides,
+  made software architecture the current module reference, archived completed
+  M1–M12 plans and superseded research/designs, and repaired relative links.
+  Kept M13 Active because physical Wake acceptance is still deferred.
+
+- 2026-10-10 — Consolidated the canonical UX terms, information architecture,
+  and GUI specification around the implemented P1-M14 owner decisions. Moved
+  the information architecture to its canonical UX filename and updated its
+  links. The documents now distinguish the current visual remote, explicit
+  Check TV → Pair path, separate Wake configuration, and current accessibility
+  limits from proposed changes. Added a separate research note with
+  discovery, pairing, and Wake interaction recommendations.
+
+- 2026-10-09 — Owner removed the duplicate “Keyboard controls” panel below
+  the P1-M14 visual remote. Remote View now shows the image alone; existing
+  shortcuts remain for mapped actions. The image's pointer regions, including
+  Play/Pause, have no individual keyboard focus or screen-reader labels.
+  Updated the milestone plan and UX documents with that limitation. Cargo
+  gates and the signed bundle build pass; a native Remote View inspection
+  confirms the panel is absent.
+
+- 2026-10-09 — Removed routine “Opened Settings” and “Closed Settings”
+  information entries from Global Messages. Settings window lifecycle and
+  existing messages are preserved.
+
+- 2026-10-09 — Reviewed the implemented P1-M14 visual remote against the
+  owner's revised direction. The bundled remote image keeps its pointer hit
+  regions; hover highlights usable regions and unavailable regions are dimmed.
+  Added focusable, named companion buttons with the same typed actions and
+  disabled guidance because canvas regions are not separate keyboard targets.
+  Centered the titled primary-view boxes and removed stale per-key verification
+  guidance. The owner chose to keep `KEY_PLAY` for the new Play/Pause face for
+  now; pause behavior remains unverified on hardware. Updated P1-M14 and UX
+  documents to reflect the visual remote and this limit. The signed bundle
+  built and its Remote View and companion controls were visually inspected at
+  the minimum window size; Power View was also inspected. Focus, Settings and
+  placeholder views, and screen-reader labels remain unverified.
+
 - 2026-10-09 — Revised the P1-M14 plan using the owner's VS Code Sidebar
   reference. The Main Window Sidebar becomes a compact bitmap-led rail with
   edge-to-edge, gapless button slots, a Sidebar-matched resting background,
@@ -258,19 +296,19 @@ Status: Active
   design. Verified Cargo format, Clippy, and test gates; `cargo test` passed
   with zero tests because this milestone adds no behavior. Relative Markdown
   links and `git diff --check` passed. See the completed
-  [milestone overview](milestone-03-overview.md).
+  [milestone overview](../archive/phase-1/milestone-03-overview.md).
 - 2026-10-05 — Planned P1-M4, Iced Application Shell and Navigation, as the
   next implementation milestone after P1-M3 completes. It builds the shared
   window and view shell without TV networking or device behavior. The plan
   uses one Iced application for the main and Settings windows and keeps
   presentation state separate from application commands. See the
-  [overview](milestone-04-overview.md) and
-  [architecture](milestone-04-architecture.md).
+  [overview](../archive/phase-1/milestone-04-overview.md) and
+  [architecture](../archive/phase-1/milestone-04-architecture.md).
 - 2026-10-05 — Owner added **Sources**, **Apps**, and **Text Input** as Sidebar
   destinations. Each opens Sources View, Apps View, or Text Input View in the
   Main Pane while the Global Messages Pane and Activity View remain available.
   Wake placement remains open. Updated the [UX glossary](../ux-term.md),
-  [information architecture](../planned-information-architecture.md),
+  [information architecture](../ux-information-architecture.md),
   [GUI plan](../ux-gui.md), and P1-M3 plans.
 - 2026-10-05 — Reviewed control, monitoring, and Clean Architecture boundaries.
   Assigned the sole bounded command queue and result journal to the application
@@ -282,15 +320,15 @@ Status: Active
   Pane (about eight lines initially, newest message at bottom) above a separate
   Activity View. Messages from both app windows share a session-only feed.
   Updated the [software architecture](../architecture.md),
-  [repository map](../planned-repository-architecture.md),
+  [repository map](../archive/planned-repository-architecture.md),
   [UX glossary](../ux-term.md),
-  [information architecture](../planned-information-architecture.md), and
+  [information architecture](../ux-information-architecture.md), and
   [GUI plan](../ux-gui.md).
 - 2026-10-05 — Owner clarified first launch: show the main app window only;
   do not add onboarding, a setup prompt, or automatically open Settings. At the
   time, control availability without a TV was undecided. TV discovery remains
   available from TV settings when the user opens it. Updated the
-  [information architecture](../planned-information-architecture.md),
+  [information architecture](../ux-information-architecture.md),
   [GUI plan](../ux-gui.md), and software architecture.
 - 2026-10-05 — Owner added a Main Toolbar at the bottom of the Sidebar with a
   Settings button that opens a Settings Window. TV is first in the Settings
@@ -301,19 +339,19 @@ Status: Active
   active and is saved after TV Identity Confirmation and pairing. At launch,
   resume the selected Saved TV and attempt to reconnect. Updated the
   [UX glossary](../ux-term.md),
-  [information architecture](../planned-information-architecture.md), and
+  [information architecture](../ux-information-architecture.md), and
   [GUI plan](../ux-gui.md).
 - 2026-10-05 — Owner started P1-M3 to define canonical UX terms, information
   architecture, and the planned GUI before implementation. The app opens to
   the Remote View; remaining Sidebar contents are TBD. The volume slider is
   interactive when the selected TV supports exact-level control. See the
   [UX glossary](../ux-term.md),
-  [information architecture](../planned-information-architecture.md), and
+  [information architecture](../ux-information-architecture.md), and
   [GUI plan](../ux-gui.md).
 - 2026-10-05 — Owner added local-network TV discovery to the first usable
   app. Keep manual host entry as a fallback; choose and validate the discovery
   mechanism against the target TV. Updated the [software architecture](../architecture.md)
-  and [repository map](../planned-repository-architecture.md).
+  and [repository map](../archive/planned-repository-architecture.md).
 - 2026-10-05 — Owner selected Iced for the macOS window and manual host entry
   as the required add-device path. The first usable app should include core
   controls, wake, sources, installed-app launch, and text input where the TV
@@ -321,7 +359,7 @@ Status: Active
   owner's home network. Initial installation is for the owner's Mac and
   compatibility testing starts with KU75UA8090FXKR. The port-8001 policy
   remains open until that TV is tested. The [software architecture](../architecture.md)
-  and [repository map](../planned-repository-architecture.md) reflect these calls.
+  and [repository map](../archive/planned-repository-architecture.md) reflect these calls.
 - 2026-10-05 — P1-M1 completed. Added the minimal `samsung-tv-remote` binary
   package and Hello World entry point requested for the Rust starter. The
   gate passed: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
@@ -334,8 +372,8 @@ Status: Active
   failure contract, macOS local-network/privacy and distribution constraints,
   and token/logging rules. Exact endpoint, TLS, pairing, key, and wake behavior
   remain hardware questions. Research notes:
-  [summary](../research/p1-m1-initial-research.md),
-  [protocol](../research/samsung-tv-remote-protocol.md),
-  [security](../research/samsung-tv-protocol-security.md).
+  [summary](../archive/research/p1-m1-initial-research.md),
+  [protocol](../archive/research/samsung-tv-remote-protocol.md),
+  [security](../archive/research/samsung-tv-protocol-security.md).
 - 2026-10-05 — Phase 1 planned with P1-M1 Initial Research and P1-M2 Initial
   Architecture.

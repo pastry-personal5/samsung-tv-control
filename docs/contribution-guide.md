@@ -5,20 +5,16 @@ defines the canonical local Cargo workflow for the current Rust package.
 
 ## Setup and development
 
-Use the Rust toolchain selected by the repository (for example,
-`rust-toolchain.toml` when present). Build and launch the debug application
-with:
+Use stable Rust. Build and launch the debug application with:
 
 ```sh
 cargo run
 ```
 
-The current package launches the Iced GUI. Settings can probe and pair a TV
-over secure port 8002; P1-M10 is Done with some hardware verification deferred
-by the owner. See the milestone overview for the exact evidence and limits.
-For local-network permission testing, build the signed app bundle with
-`make bundle`. It uses `SAMSUNG_TV_CODESIGN_IDENTITY` if set, or the identity
-saved in `target/local-signing-identity.txt` by
+The package launches the Iced GUI. Settings can probe and pair a TV over
+secure port 8002. For local-network permission testing, build the signed app
+bundle with `make bundle`. It uses `SAMSUNG_TV_CODESIGN_IDENTITY` if set, or the
+identity saved in `target/local-signing-identity.txt` by
 `zsh scripts/create_local_signing_identity.sh`. The bundle is written to
 `target/bundle/Samsung TV Remote.app`. Launch that bundle for native review;
 `cargo run` does not prove native bundle permission behavior.
@@ -49,13 +45,13 @@ Write commit messages in [Conventional Commits](https://www.conventionalcommits.
 
 - **Title:** `<type>[(scope)]: <summary>` — lowercase, imperative, 50 characters
   or fewer, no trailing period. Types: `feat`, `fix`, `docs`, `style`,
-   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+  `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - **Body** (optional): one blank line after the title, then short paragraphs
   explaining *why* the change was made, wrapped at 72 characters. Keep it brief.
 
 Keep each commit focused. Example:
 
-    feat(discovery): add mDNS TV discovery
+    feat(discovery): add SSDP TV discovery
 
     Find TVs on the local network so the remote can list devices without manual
     IP entry.
