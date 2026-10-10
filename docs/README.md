@@ -8,6 +8,7 @@ Current references:
 - [Contribution guide](contribution-guide.md) — development and validation.
 - [Development process](development-process.md) and [roadmap](roadmap.md) — planning.
 - [Phase 1](phase-1/phase-1.md) — milestone status and open acceptance work.
+- [Version v1.0.0 release note](releases/v1.0.0.md).
 
 [Research](research/) contains open proposals and future-feature findings.
 [Archive](archive/) contains completed milestone plans, superseded designs, and

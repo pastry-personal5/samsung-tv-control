@@ -9,9 +9,11 @@ placeholders. The visual remote supports pointer input and mapped keyboard
 shortcuts. Its Play/Pause control sends `KEY_PLAY` when playback is unknown or
 last requested paused, then `KEY_PAUSE` after a confirmed Play write.
 
-Phase 1 is [active](docs/phase-1/phase-1.md). Wake on a physical TV and parts
-of the native visual and accessibility review remain open. See the
-[documentation index](docs/README.md) for current guidance and archived plans.
+Phase 1 is [active](docs/phase-1/phase-1.md) while physical Wake validation is
+deferred. See the [documentation index](docs/README.md) for current guidance
+and archived plans.
+
+Release: [v1.0.0](docs/releases/v1.0.0.md).
 
 For setup, development, and validation, use the
 [contribution guide](docs/contribution-guide.md). Do not commit pairing tokens,

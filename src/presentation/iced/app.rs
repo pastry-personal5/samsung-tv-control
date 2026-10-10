@@ -613,7 +613,7 @@ impl App {
             ),
             Admission::Queued(_) => {
                 let queued = self.publish(
-                    super::view_model::MessageSeverity::Information,
+                    super::view_model::MessageSeverity::Debug,
                     super::view_model::MessageSource::MainWindow,
                     "Remote request queued.",
                 );
@@ -2088,6 +2088,11 @@ mod tests {
 
         let messages = app.view_model.messages().entries();
         assert_eq!(messages.len(), 2);
+        assert_eq!(
+            messages.front().expect("queued message").severity,
+            super::super::view_model::MessageSeverity::Debug
+        );
+        assert_eq!(app.view_model.messages().global_entries().count(), 1);
         assert!(messages.back().unwrap().text.contains("not sent"));
         assert!(!messages.iter().any(|entry| entry.text.contains("written")));
         assert!(app.view_model.control_state().remote_actions_enabled());

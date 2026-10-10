@@ -27,7 +27,7 @@ messages from both windows.
 | View | Current purpose |
 | --- | --- |
 | Remote View | A single visual remote image with power, direction, navigation, playback, mute, and volume regions. |
-| Power View | Wake Steps and explicit Wake, Power Toggle, retry, and cancel actions when applicable. |
+| Power View | Power Controls, then Wake Steps. Controls include Wake, Power Toggle, retry, and cancel actions when applicable. |
 | Sources View | A named placeholder; source selection is not implemented. |
 | Apps View | A named placeholder; app browsing and launching are not implemented. |
 | Text Input View | A named placeholder; TV text entry is not implemented. |
@@ -40,15 +40,16 @@ shortcut chrome.
 
 | Page | Current content |
 | --- | --- |
-| Discovery | TV List card for Saved TVs and unsaved candidates; Discovery and Pairing card with Discover TVs and manual host entry; Connection recovery card; Guidance card. |
+| Discovery | TV List card for Saved TVs and unsaved candidates; Discovery and Pairing card with Discover TVs and manual host entry; Guidance card. |
 | Wake on LAN | Wake Configuration card with wired and Wi-Fi MAC fields and Wired, Wi-Fi, or Disabled choice; Guidance card. |
 
 The Discovery page keeps Saved TVs separate from unsaved candidates. A Saved TV
-row can be selected; the selected row offers Check TV and, after a matching
-check, Re-pair. A candidate row can be staged, checked, and then paired. Manual
-entry uses the same check and pair path. Selecting a candidate never pairs it
-automatically. A successful pair saves and selects that TV. A Saved TV can
-remain selected while disconnected.
+row can be selected; the selected row offers Check TV, Re-pair after a matching
+check, Retry Connection, and Forget Selected TV. Retry reconnects that selected
+TV; Forget removes that row's saved record and pairing credentials. A candidate
+row can be staged, checked, and then paired. Manual entry uses the same check
+and pair path. Selecting a candidate never pairs it automatically. A successful
+pair saves and selects that TV. A Saved TV can remain selected while disconnected.
 
 Wake settings belong to the Selected TV. The user supplies the TV's interface
 MAC and chooses one active interface or Disabled. Wake setup is optional for
@@ -60,7 +61,7 @@ progress.
 Short task status and guidance stay in the relevant Settings page or Power View.
 The Global Messages Pane carries durable session feedback about setup,
 connection, Wake, and remote requests. It does not log routine Settings Window
-open/close events. Remote View has no persistent pairing, connection, or
+open/close events or Debug-level diagnostics. Remote View has no persistent pairing, connection, or
 aggregate status banner. Disabled image regions are dimmed; Power View and
 Settings present the available recovery actions.
 

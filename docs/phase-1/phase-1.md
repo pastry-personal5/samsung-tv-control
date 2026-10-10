@@ -31,11 +31,12 @@ Completed plans are retained in the [archive](../archive/phase-1/).
 | P1-M11 | Clean Architecture Refactoring | Done | [Overview](../archive/phase-1/milestone-11-overview.md) · [Architecture](../archive/phase-1/milestone-11-architecture.md) |
 | P1-M12 | Dark GUI and Focused Navigation | Done | [Overview](../archive/phase-1/milestone-12-overview.md) · [Architecture](../archive/phase-1/milestone-12-architecture.md) |
 | P1-M13 | Wake-on-LAN and Toggle Power | Active | [Overview](milestone-13-overview.md) · [Architecture](milestone-13-architecture.md) |
-| P1-M14 | Remote and Settings GUI Refinement | Active | [Overview](milestone-14-overview.md) · [Architecture](milestone-14-architecture.md) |
+| P1-M14 | Remote and Settings GUI Refinement | Done | [Overview](milestone-14-overview.md) · [Architecture](milestone-14-architecture.md) |
 
 M13 is implemented while physical Wake, permission recovery, and latency
-verification remain deferred. M14 implementation is in place; full native
-visual, focus, and Play/Pause hardware checks remain open. Work proceeded on
-M14 while those M13 checks awaited hardware review. M10 was closed by the owner
-with its deferred checks recorded in the hardware matrix. The
+verification remain deferred. M14 is complete: native layout review and all
+documented Cargo and bundle gates passed. Iced/macOS keyboard focus and
+screen-reader exposure remain product follow-ups, and playback state remains
+inferred until a supported monitoring integration is added. M10 was closed by
+the owner with its deferred checks recorded in the hardware matrix. The
 [changelog](changelog.md) preserves decisions and acceptance history.

@@ -95,6 +95,7 @@ impl PrimaryView {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageSeverity {
+    Debug,
     Information,
     Warning,
 }
@@ -102,9 +103,14 @@ pub enum MessageSeverity {
 impl MessageSeverity {
     pub const fn label(self) -> &'static str {
         match self {
+            Self::Debug => "Debug",
             Self::Information => "Info",
             Self::Warning => "Warning",
         }
+    }
+
+    pub const fn appears_in_global_messages(self) -> bool {
+        !matches!(self, Self::Debug)
     }
 }
 
@@ -123,7 +129,7 @@ impl MessageSource {
     }
 }
 
-/// A user-visible message already checked by the presentation boundary.
+/// A presentation message already checked by the application boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DisplayMessage {
     pub sequence: u64,
@@ -154,6 +160,12 @@ impl MessageFeed {
 
     pub fn entries(&self) -> &VecDeque<DisplayMessage> {
         &self.entries
+    }
+
+    pub fn global_entries(&self) -> impl Iterator<Item = &DisplayMessage> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.severity.appears_in_global_messages())
     }
 
     pub fn at_bottom(&self) -> bool {
@@ -187,6 +199,10 @@ impl MessageFeed {
             let _ = self.entries.pop_front();
         }
         self.entries.push_back(entry);
+
+        if !severity.appears_in_global_messages() {
+            return false;
+        }
 
         if follow {
             self.unread_count = 0;
@@ -499,6 +515,31 @@ mod tests {
 
         feed.set_at_bottom(true);
         assert_eq!(feed.unread_count(), 0);
+    }
+
+    #[test]
+    fn debug_messages_are_retained_but_excluded_from_global_messages() {
+        let mut feed = MessageFeed::new(3);
+        feed.set_at_bottom(false);
+
+        assert!(!feed.append(
+            MessageSeverity::Debug,
+            MessageSource::MainWindow,
+            "Remote request queued.",
+        ));
+        assert_eq!(feed.entries().len(), 1);
+        assert_eq!(feed.global_entries().count(), 0);
+        assert_eq!(feed.unread_count(), 0);
+
+        assert!(!feed.append(
+            MessageSeverity::Information,
+            MessageSource::MainWindow,
+            "Remote request completed.",
+        ));
+        let visible: Vec<_> = feed.global_entries().collect();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].text, "Remote request completed.");
+        assert_eq!(feed.unread_count(), 1);
     }
 
     #[test]

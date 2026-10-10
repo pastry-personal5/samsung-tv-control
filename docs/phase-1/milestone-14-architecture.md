@@ -1,6 +1,6 @@
 # P1-M14: Remote and Settings GUI Refinement
 
-Status: Active
+Status: Done
 
 ## Architecture
 
@@ -60,7 +60,7 @@ content or include the Messages split bar and Global Messages Pane. At the
 smaller available heights scroll the primary-view area rather than compress
 controls into the message region.
 
-Power View composes Wake Steps and power actions inside its outer box. Remote
+Power View puts Power Controls above Wake Steps inside its outer box. Remote
 View shows only the centered visual remote. The other primary views use the
 same titled wrapper while remaining placeholders. The image's pointer regions
 show hover and unavailable overlays. Iced canvas regions are not individual
@@ -68,10 +68,11 @@ focus targets. Existing app shortcuts remain available for their mapped
 actions; Play/Pause on the image has no keyboard equivalent in this milestone.
 Ambiguous or consequential Power View actions retain visible text beside the
 bitmap. Power View does not use image color alone to explain unavailable
-actions. The Settings Discovery page contains saved-TV selection,
-discovery/probe/pairing, connection recovery, and guidance cards. The separate
-Wake on LAN page contains Wake configuration and guidance. Setup and recovery
-buttons retain visible text even when they gain artwork.
+actions. The Settings Discovery page contains a TV List, Discovery and Pairing,
+and Guidance card. Its selected Saved TV row contains Check TV, Re-pair, Retry
+Connection, and Forget Selected TV. The separate Wake on LAN page contains Wake
+configuration and guidance. Setup and recovery buttons retain visible text even
+when they gain artwork.
 
 Use the P1-M12 graphite palette consistently. Semantic styling complements,
 but does not replace, card headings, state words, tooltip guidance, and
@@ -98,12 +99,12 @@ button faces become bitmaps; document and test any intentional label change.
   and no overlap with Global Messages at minimum window dimensions.
 - Run the contributor-guide Cargo formatting, Clippy, and test gates.
 
-Full native review of Settings, placeholder views, focus, and all Sidebar
-states is still needed. A socket write of `KEY_PLAY` or `KEY_PAUSE` does not
-prove the resulting player state; that behavior needs a live-TV check.
-The signed bundle's Remote and Power Views were inspected at the minimum
-window size, including scrolling without Messages overlap. The macOS
-accessibility tree exposed only the window, so individual screen-reader labels
-and a distinct keyboard-focus ring have not been verified. The image-only
-layout leaves those actions pointer-only; this is a known
-accessibility limit under the P1-M4 owner-approved follow-up.
+The signed bundle's five primary views and Settings Discovery page were
+inspected at the minimum window size, including scrolling without Messages
+overlap. The macOS accessibility tree exposes only the window, so individual
+screen-reader labels and a distinct keyboard-focus ring remain unavailable.
+The image-only controls are pointer-only; this is a known accessibility limit
+under the P1-M4 owner-approved product follow-up. A socket write of `KEY_PLAY`
+or `KEY_PAUSE` does not prove the resulting player state. The app therefore
+retains inferred playback state only; supported live-TV monitoring is tracked
+in the Tizen research note.

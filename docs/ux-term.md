@@ -21,9 +21,9 @@ setup and Wake live in the
 | **Settings Window** | The separate window for selecting and setting up a TV. |
 | **Settings Sidebar** | The Settings Window navigation, with Discovery and Wake on LAN pages. |
 | **Settings Main Pane** | The content area beside the Settings Sidebar. |
-| **Discovery page** | Settings page for saved TVs, discovery, manual entry, checking, pairing, and connection recovery. |
+| **Discovery page** | Settings page for saved TVs, discovery, manual entry, checking, pairing, and selected-row connection recovery. |
 | **Wake on LAN page** | Settings page for a selected TV's wired and Wi-Fi MAC addresses and active Wake interface. |
-| **Global Messages Pane** | The resizable, scrollable, session-only feed below the primary view. It receives user-relevant outcomes from both windows, newest at the bottom. |
+| **Global Messages Pane** | The resizable, scrollable, session-only feed below the primary view. It receives user-relevant outcomes from both windows, newest at the bottom, and excludes Debug-level diagnostics. |
 | **Messages split bar** | The draggable divider above the Global Messages Pane. |
 
 ## TVs and setup

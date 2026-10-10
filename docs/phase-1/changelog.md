@@ -4,6 +4,19 @@ Status: Active
 
 ## Entries
 
+- 2026-10-10 — Completed P1-M14. The signed bundle verified successfully and
+  native review covered all primary views, Settings Discovery, Power Controls,
+  and selected-row TV actions at the minimum window size. Keyboard focus and
+  screen-reader exposure remain documented Iced/macOS product follow-ups; live
+  playback state remains inferred pending a supported monitoring integration.
+
+- 2026-10-10 — Classified "Remote request queued." as Debug. The Global
+  Messages Pane excludes Debug diagnostics and does not count them as unread.
+
+- 2026-10-10 — Moved Power Controls above Wake Steps. Moved Retry Connection
+  and Forget Selected TV into the selected Saved TV row and removed the
+  redundant Connection recovery card and current-selection text.
+
 - 2026-10-10 — Recorded Tizen TV state-monitoring research. The local remote
   channel remains a command path with inferred playback state; documented
   observation options require a participating Tizen app, SmartThings capability,

@@ -23,8 +23,8 @@ names, subject to native accessibility verification.
 
 The Main Pane shows one horizontally centered, bounded-width box titled with the
 current primary view's name. Its primary-view region scrolls rather than
-overlapping the Global Messages Pane. Power View groups Wake Steps and its
-actions in the box. Sources, Apps, and Text Input use titled placeholder boxes;
+overlapping the Global Messages Pane. Power View puts Power Controls above Wake
+Steps. Sources, Apps, and Text Input use titled placeholder boxes;
 their capabilities are not implemented.
 
 ## Remote View
@@ -73,10 +73,12 @@ visible names and text equivalents for status colors.
 ## Discovery and pairing in Settings
 
 The Settings Sidebar has Discovery and Wake on LAN. The Discovery page groups TV
-List, Discovery and Pairing, Connection recovery, and Guidance cards.
+List, Discovery and Pairing, and Guidance cards.
 
 TV List shows Saved TVs with a selection radio. The selected Saved TV row offers
-Check TV; Re-pair becomes available after a matching check. Unsaved discovered
+Check TV, Re-pair after a matching check, Retry Connection, and Forget Selected
+TV in its Actions column. Retry Connection reconnects the selected row. Forget
+Selected TV removes its saved record and pairing credentials. Unsaved discovered
 or manually entered hosts appear in a separate candidate list. Selecting a
 candidate stages its address without selecting it as the app's trusted TV. Check
 TV probes its secure endpoint on port 8002 and displays the observed certificate
@@ -89,7 +91,6 @@ Discover TVs starts a local scan. Manual IP address or host-name entry remains
 available, including after an empty, failed, or permission-denied scan;
 submitting the field checks that host. Guidance describes search, probe,
 pairing, and recovery results. Saved TVs remain available during a failed scan.
-Retry Connection and Forget Selected TV belong to the Connection recovery card.
 
 This page currently uses one guidance/status region; it does not provide a
 separate scan Cancel button, a per-row pairing progress stepper, or a dedicated
@@ -115,8 +116,8 @@ Messages split bar adjusts its height while preserving usable room for the
 primary view. The feed is scrollable, chronological, and session-only, newest at
 the bottom. Rows have fixed-width Info or Warning severity labels and concise
 message text. It excludes sequence numbers, source bookkeeping, raw network
-payloads, credentials, and entered text. Routine “Opened Settings” and “Closed
-Settings” messages are omitted. Setup status can also appear locally in
+payloads, credentials, entered text, and Debug-level diagnostics. Routine
+“Opened Settings” and “Closed Settings” messages are omitted. Setup status can also appear locally in
 Settings.
 
 Report “sent” or “requested” for remote commands unless the TV reports a
@@ -124,4 +125,5 @@ resulting state. Show pairing, connection, and Wake failures with the next
 available action. Keep local packet-send success distinct from remote readiness.
 Disabled native controls should explain their known reason; the Remote View
 image currently gives dimming without per-region spoken guidance. Native
-keyboard-focus and screen-reader behavior remains a P1-M14 review item.
+keyboard-focus and screen-reader behavior remain known Iced/macOS product
+follow-ups.

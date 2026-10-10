@@ -637,6 +637,21 @@ fn power_view(
         "Power View",
         column![
             titled_panel(
+                "Power Controls",
+                container(
+                    row![
+                        wake_button,
+                        power_toggle_button(control_state, stage, configured, true),
+                        retry_button,
+                        action_button(Icon::Cancel, "Cancel", true, active)
+                            .on_press_maybe(active.then_some(Message::CancelWake))
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                )
+                .center_x(Length::Fill),
+            ),
+            titled_panel(
                 "Wake Steps",
                 column![
                     wake_step(
@@ -658,21 +673,6 @@ fn power_view(
                     }),
                 ]
                 .spacing(10)
-            ),
-            titled_panel(
-                "Power Controls",
-                container(
-                    row![
-                        wake_button,
-                        power_toggle_button(control_state, stage, configured, true),
-                        retry_button,
-                        action_button(Icon::Cancel, "Cancel", true, active)
-                            .on_press_maybe(active.then_some(Message::CancelWake))
-                    ]
-                    .spacing(8)
-                    .align_y(Alignment::Center),
-                )
-                .center_x(Length::Fill),
             ),
         ]
         .spacing(14)
@@ -765,14 +765,16 @@ fn split_bar(height: u16) -> Element<'static, Message> {
 }
 
 fn global_messages(view_model: &ViewModel) -> Element<'_, Message> {
-    let entries = if view_model.messages().entries().is_empty() {
+    let messages = view_model.messages();
+    let entries = if messages.global_entries().next().is_none() {
         column![text("No messages yet.").size(13)].spacing(6)
     } else {
         let mut entries = column![].spacing(6);
-        for entry in view_model.messages().entries() {
+        for entry in messages.global_entries() {
             let severity = text(entry.severity.label())
                 .size(12)
                 .style(match entry.severity {
+                    super::view_model::MessageSeverity::Debug => ::iced::widget::text::secondary,
                     super::view_model::MessageSeverity::Information => {
                         ::iced::widget::text::primary
                     }
@@ -889,7 +891,7 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
         observed_host,
         status,
         selected_id,
-        selected_label,
+        selected_label: _,
         pairing_pending,
         forget_pending,
         wake_wired,
@@ -934,18 +936,17 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
     .height(Length::Fill)
     .style(|_| container::Style::default().background(settings_sidebar_color()));
 
-    let selected = selected_label.unwrap_or("None");
     let has_fingerprint = fingerprint.is_some();
     let fingerprint_text = fingerprint
         .map(|value| format!("Observed certificate SHA-256: {value}"))
         .unwrap_or_else(|| "No certificate observed yet.".to_owned());
-    let mut selected_content = column![text(format!("Current selection: {selected}"))].spacing(10);
+    let mut selected_content = column![].spacing(10);
     if !saved_devices.is_empty() {
         let header = row![
             container(text("Select").size(13)).width(Length::Fixed(48.0)),
             container(text("TV name").size(13)).width(Length::FillPortion(3)),
             container(text("TV IP Address").size(13)).width(Length::FillPortion(2)),
-            container(text("Actions").size(13)).width(Length::Fixed(180.0)),
+            container(text("Actions").size(13)).width(Length::Fixed(440.0)),
         ]
         .align_y(Alignment::Center)
         .spacing(8)
@@ -968,6 +969,18 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                                 .then_some(Message::ConfirmAndRepair)
                         )
                         .style(action_button_style),
+                    button("Retry Connection")
+                        .on_press_maybe(
+                            (!pairing_pending && !forget_pending)
+                                .then_some(Message::ConnectSelected)
+                        )
+                        .style(action_button_style),
+                    button("Forget Selected TV")
+                        .on_press_maybe(
+                            (!pairing_pending && !forget_pending)
+                                .then_some(Message::ForgetSelected)
+                        )
+                        .style(action_button_style),
                 ]
                 .spacing(6)
                 .align_y(Alignment::Center)
@@ -981,7 +994,7 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
                         .width(Length::Fixed(48.0)),
                     container(text(&device.label)).width(Length::FillPortion(3)),
                     container(text(device.host.as_str())).width(Length::FillPortion(2)),
-                    container(actions).width(Length::Fixed(180.0)),
+                    container(actions).width(Length::Fixed(440.0)),
                 ]
                 .align_y(Alignment::Center)
                 .spacing(8)
@@ -1091,29 +1104,6 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
             .push(text(fingerprint_text).size(12))
             .push(text("Check the intended TV, confirm its address and certificate, then approve the pairing prompt on the TV."));
 
-    let connection_content = column![
-        text("Retry the trusted remote connection or forget this TV and its stored pairing.")
-            .size(13),
-        row![
-            button("Retry Connection")
-                .on_press_maybe(
-                    selected_label
-                        .filter(|_| !forget_pending)
-                        .map(|_| Message::ConnectSelected)
-                )
-                .style(action_button_style),
-            button("Forget Selected TV")
-                .on_press_maybe(
-                    selected_label
-                        .filter(|_| !forget_pending)
-                        .map(|_| Message::ForgetSelected)
-                )
-                .style(action_button_style)
-        ]
-        .spacing(8)
-    ]
-    .spacing(10);
-
     let wake_content = column![
         text("Enter the MAC shown by the TV for its wired or Wi-Fi network interface.").size(13),
         text_input("Wired MAC (AA:BB:CC:DD:EE:FF)", wake_wired).on_input(Message::WakeWiredChanged),
@@ -1147,7 +1137,6 @@ pub fn settings_window(options: SettingsView<'_>) -> Element<'_, Message> {
             text("Discovery").size(26),
             card("TV List", selected_content),
             card("Discovery and Pairing", pairing_content),
-            card("Connection recovery", connection_content),
             card("Guidance", text(status)),
         ]
         .spacing(14)
