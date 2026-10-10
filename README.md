@@ -1,19 +1,24 @@
 # Samsung TV Remote
 
-Super-fast remote controller for macOS, written in Rust.
+> Super-fast remote controller for macOS, written in Rust.
+
+[![Release](https://img.shields.io/github/v/release/pastry-personal5/samsung-tv-remote?label=release)](https://github.com/pastry-personal5/samsung-tv-remote/releases/latest)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](docs/contribution-guide.md)
+
+Save time controlling your Samsung TV from your Mac. It is built for the
+moments when powering on your own Samsung TV through the official SmartThings
+app feels slower than reaching for a remote.
 
 The app supports discovery or manual address entry, certificate checking,
 TV-approved pairing, saved-TV reconnect, remote keys, and Wake-on-LAN. Power,
-Remote, and Settings are functional; Sources, Apps, and Text Input are
-placeholders. The visual remote supports pointer input and mapped keyboard
-shortcuts. Its Play/Pause control sends `KEY_PLAY` when playback is unknown or
-last requested paused, then `KEY_PAUSE` after a confirmed Play write.
-
-Phase 1 is [active](docs/phase-1/phase-1.md) while physical Wake validation is
-deferred. See the [documentation index](docs/README.md) for current guidance
-and archived plans.
+Remote, and Settings are functional.
 
 Release: [v1.0.0](docs/releases/v1.0.0.md).
+
+![img](docs/archive/screenshots/v1.0.0-0000.jpg) ![img](docs/archive/screenshots/v1.0.0-0001.jpg)
+
+See the [documentation index](docs/README.md) for current guidance
+and archived plans.
 
 For setup, development, and validation, use the
 [contribution guide](docs/contribution-guide.md). Do not commit pairing tokens,
