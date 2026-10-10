@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use futures_util::stream::BoxStream;
 
 use super::certificate_trust::CertificatePin;
-use super::control_state::ControlState;
+use super::control_state::{ControlState, PlaybackState};
 use super::device_repository::{RepositoryError, SavedDevice};
 use super::remote_dispatcher::{
     Admission, NotSentReason, RemoteDispatcher, RequestId, TerminalOutcome, TerminalResult,
@@ -19,7 +19,7 @@ use super::tv_session::{
 use super::tv_setup_service::{ForgetResult, ReconnectError, SetupError, TvSetupPort};
 use super::wake::WakeConfiguration;
 use super::wake_transport::{WakePermit, WakeSendError, WakeTransport};
-use crate::domain::DeviceId;
+use crate::domain::{DeviceId, RemoteAction};
 
 #[derive(Clone)]
 pub struct AppServices {
@@ -626,6 +626,7 @@ impl TvControlCoordinator {
         self.pair_pending = false;
         self.connect_attempt = self.connect_attempt.saturating_add(1);
         let generation = self.app_state.selection_generation();
+        self.app_state.reset_playback_state(generation);
         self.app_state.set_connection_state(
             generation,
             super::control_state::ConnectionState::Connecting,
@@ -795,6 +796,8 @@ impl TvControlCoordinator {
         self.cancel_wake();
         self.bump_pair_attempt();
         self.connect_attempt = self.connect_attempt.saturating_add(1);
+        self.app_state
+            .reset_playback_state(self.app_state.selection_generation());
         self.wake_stage = WakeStage::PacketSending;
         Some(WakePlan {
             attempt: self.wake_attempt,
@@ -1119,9 +1122,21 @@ impl TvControlCoordinator {
     }
 
     pub fn pump_dispatch(&mut self) {
-        let Some(item) = self.dispatcher.start_next(&self.app_state) else {
+        let Some(mut item) = self.dispatcher.start_next(&self.app_state) else {
             return;
         };
+        if item.request.action() == RemoteAction::PlayPause {
+            let action = match self.app_state.playback_state() {
+                PlaybackState::Unknown | PlaybackState::AssumedPaused => RemoteAction::Play,
+                PlaybackState::AssumedPlaying => RemoteAction::Pause,
+            };
+            assert!(self.dispatcher.resolve_in_flight_action(item.id, action));
+            item.request = SendRemoteAction::new(
+                item.request.target(),
+                item.request.selection_generation(),
+                action,
+            );
+        }
         if !self.try_click(item.id, item.request.action()) {
             self.dispatcher.finish(
                 item.id,
@@ -1156,7 +1171,13 @@ impl TvControlCoordinator {
                     TvSessionEvent::Uncertain(_) => TerminalOutcome::Uncertain,
                     _ => TerminalOutcome::NotSent(NotSentReason::TransportUnavailable),
                 };
+                let action = self.dispatcher.in_flight_action(id);
                 if self.dispatcher.finish(id, outcome) {
+                    if matches!(event, TvSessionEvent::Written(_)) {
+                        if let Some(action) = action {
+                            self.app_state.record_playback_write(generation, action);
+                        }
+                    }
                     SessionImpact::RemoteResult
                 } else {
                     SessionImpact::Ignored
@@ -1301,7 +1322,7 @@ impl TvControlCoordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::control_state::{ConnectionState, PairingState};
+    use crate::application::control_state::{ConnectionState, PairingState, PlaybackState};
     use crate::domain::{DeviceDisplay, RemoteAction};
     use futures_util::stream;
 
@@ -1495,6 +1516,99 @@ mod tests {
             coordinator.process_session_event(generation, 2, TvSessionEvent::Written(id)),
             SessionImpact::Ignored
         );
+    }
+
+    #[test]
+    fn unknown_playback_sends_play_then_pause_after_a_confirmed_play_write() {
+        let (mut coordinator, device) = connected_coordinator();
+        let generation = coordinator.app_state.selection_generation();
+        let writes = Arc::new(Mutex::new(Vec::new()));
+        coordinator.active_runtime = Some(ActiveRuntime {
+            generation,
+            session_id: 4,
+            control: Box::new(FakeControl {
+                writes: Arc::clone(&writes),
+            }),
+        });
+        assert_eq!(
+            coordinator.app_state.playback_state(),
+            PlaybackState::Unknown
+        );
+
+        for _ in 0..2 {
+            assert!(matches!(
+                coordinator.admit_remote(SendRemoteAction::new(
+                    device.id,
+                    generation,
+                    RemoteAction::PlayPause,
+                )),
+                Admission::Queued(_)
+            ));
+        }
+
+        coordinator.pump_dispatch();
+        let first = writes.lock().unwrap()[0];
+        assert_eq!(first.1, RemoteAction::Play);
+        assert_eq!(
+            coordinator.process_session_event(generation, 4, TvSessionEvent::Written(first.0)),
+            SessionImpact::RemoteResult
+        );
+        assert_eq!(
+            coordinator.app_state.playback_state(),
+            PlaybackState::AssumedPlaying
+        );
+
+        coordinator.pump_dispatch();
+        let second = writes.lock().unwrap()[1];
+        assert_eq!(second.1, RemoteAction::Pause);
+        assert_eq!(
+            coordinator.process_session_event(generation, 4, TvSessionEvent::Written(second.0)),
+            SessionImpact::RemoteResult
+        );
+        assert_eq!(
+            coordinator.app_state.playback_state(),
+            PlaybackState::AssumedPaused
+        );
+    }
+
+    #[test]
+    fn uncertain_playback_write_keeps_state_unknown_and_retries_play() {
+        let (mut coordinator, device) = connected_coordinator();
+        let generation = coordinator.app_state.selection_generation();
+        let writes = Arc::new(Mutex::new(Vec::new()));
+        coordinator.active_runtime = Some(ActiveRuntime {
+            generation,
+            session_id: 5,
+            control: Box::new(FakeControl {
+                writes: Arc::clone(&writes),
+            }),
+        });
+
+        for _ in 0..2 {
+            assert!(matches!(
+                coordinator.admit_remote(SendRemoteAction::new(
+                    device.id,
+                    generation,
+                    RemoteAction::PlayPause,
+                )),
+                Admission::Queued(_)
+            ));
+        }
+
+        coordinator.pump_dispatch();
+        let first = writes.lock().unwrap()[0];
+        assert_eq!(first.1, RemoteAction::Play);
+        assert_eq!(
+            coordinator.process_session_event(generation, 5, TvSessionEvent::Uncertain(first.0)),
+            SessionImpact::RemoteResult
+        );
+        assert_eq!(
+            coordinator.app_state.playback_state(),
+            PlaybackState::Unknown
+        );
+
+        coordinator.pump_dispatch();
+        assert_eq!(writes.lock().unwrap()[1].1, RemoteAction::Play);
     }
 
     #[test]

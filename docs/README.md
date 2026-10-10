@@ -13,3 +13,5 @@ Current references:
 [Archive](archive/) contains completed milestone plans, superseded designs, and
 research incorporated into implementation. Archived files preserve decisions
 and evidence; use the current references above for implementation guidance.
+
+Recent research: [Tizen TV state monitoring](research/tizen-tv-state-monitoring.md).

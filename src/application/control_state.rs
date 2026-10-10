@@ -30,6 +30,19 @@ pub enum ConnectionState {
     Failed,
 }
 
+/// Playback state inferred from the most recent confirmed remote command.
+///
+/// Samsung's remote channel does not provide playback-state observations. The
+/// state is therefore unknown for a new or reconnected session and only tracks
+/// the outcome the app last requested after a confirmed write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlaybackState {
+    #[default]
+    Unknown,
+    AssumedPaused,
+    AssumedPlaying,
+}
+
 /// The result of applying a generation-scoped lifecycle fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LifecycleUpdateResult {
@@ -52,6 +65,7 @@ pub struct ControlState {
     selection_generation: u64,
     pairing: PairingState,
     connection: ConnectionState,
+    playback: PlaybackState,
 }
 
 impl ControlState {
@@ -62,6 +76,7 @@ impl ControlState {
             selection_generation: 0,
             pairing: PairingState::NotStarted,
             connection: ConnectionState::NotConnected,
+            playback: PlaybackState::Unknown,
         }
     }
 
@@ -92,6 +107,29 @@ impl ControlState {
 
     pub const fn connection_state(&self) -> ConnectionState {
         self.connection
+    }
+
+    pub const fn playback_state(&self) -> PlaybackState {
+        self.playback
+    }
+
+    /// Records a confirmed playback command for the current selected TV.
+    pub fn record_playback_write(&mut self, generation: u64, action: RemoteAction) {
+        if self.validate_lifecycle_generation(generation) != LifecycleUpdateResult::Applied {
+            return;
+        }
+        match action {
+            RemoteAction::Play => self.playback = PlaybackState::AssumedPlaying,
+            RemoteAction::Pause => self.playback = PlaybackState::AssumedPaused,
+            _ => {}
+        }
+    }
+
+    /// Clears inferred playback state when a new remote session begins.
+    pub fn reset_playback_state(&mut self, generation: u64) {
+        if self.validate_lifecycle_generation(generation) == LifecycleUpdateResult::Applied {
+            self.playback = PlaybackState::Unknown;
+        }
     }
 
     /// Selects a caller-supplied known device for this session.
@@ -203,6 +241,7 @@ impl ControlState {
     fn reset_lifecycle(&mut self) {
         self.pairing = PairingState::NotStarted;
         self.connection = ConnectionState::NotConnected;
+        self.playback = PlaybackState::Unknown;
     }
 
     fn validate_lifecycle_generation(&self, generation: u64) -> LifecycleUpdateResult {
@@ -395,5 +434,27 @@ mod tests {
             state.set_connection_state(state.selection_generation(), ConnectionState::Ready),
             LifecycleUpdateResult::IgnoredNoSelection
         );
+    }
+
+    #[test]
+    fn confirmed_playback_commands_update_only_the_current_selection() {
+        let mut state = ControlState::none();
+        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(1), "Living Room"));
+        let generation = state.selection_generation();
+
+        assert_eq!(state.playback_state(), PlaybackState::Unknown);
+        state.record_playback_write(generation, RemoteAction::Play);
+        assert_eq!(state.playback_state(), PlaybackState::AssumedPlaying);
+        state.record_playback_write(generation, RemoteAction::Pause);
+        assert_eq!(state.playback_state(), PlaybackState::AssumedPaused);
+
+        state.record_playback_write(generation.saturating_add(1), RemoteAction::Play);
+        assert_eq!(state.playback_state(), PlaybackState::AssumedPaused);
+        state.record_playback_write(generation, RemoteAction::Play);
+        assert_eq!(state.playback_state(), PlaybackState::AssumedPlaying);
+        state.reset_playback_state(generation);
+        assert_eq!(state.playback_state(), PlaybackState::Unknown);
+        let _ = state.select_device(DeviceDisplay::new(DeviceId::new(2), "Bedroom"));
+        assert_eq!(state.playback_state(), PlaybackState::Unknown);
     }
 }

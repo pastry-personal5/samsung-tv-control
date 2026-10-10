@@ -4,6 +4,16 @@ Status: Active
 
 ## Entries
 
+- 2026-10-10 — Recorded Tizen TV state-monitoring research. The local remote
+  channel remains a command path with inferred playback state; documented
+  observation options require a participating Tizen app, SmartThings capability,
+  or a commissioned Matter endpoint.
+
+- 2026-10-10 — Changed the visual remote's Play/Pause dispatch to send
+  `KEY_PLAY` when playback is unknown or inferred paused and `KEY_PAUSE` after
+  a confirmed Play write. A selected or reconnected TV returns to unknown;
+  Samsung's remote channel does not provide playback-state observation.
+
 - 2026-10-10 — Consolidated current documentation: shortened the root guides,
   made software architecture the current module reference, archived completed
   M1–M12 plans and superseded research/designs, and repaired relative links.
@@ -35,9 +45,9 @@ Status: Active
   Added focusable, named companion buttons with the same typed actions and
   disabled guidance because canvas regions are not separate keyboard targets.
   Centered the titled primary-view boxes and removed stale per-key verification
-  guidance. The owner chose to keep `KEY_PLAY` for the new Play/Pause face for
-  now; pause behavior remains unverified on hardware. Updated P1-M14 and UX
-  documents to reflect the visual remote and this limit. The signed bundle
+  guidance. At that time, the owner chose `KEY_PLAY` for the new Play/Pause
+  face; pause behavior remained unverified on hardware. Updated P1-M14 and UX
+  documents to reflect the visual remote and that limit. The signed bundle
   built and its Remote View and companion controls were visually inspected at
   the minimum window size; Power View was also inspected. Focus, Settings and
   placeholder views, and screen-reader labels remain unverified.

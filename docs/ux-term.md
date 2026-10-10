@@ -51,7 +51,7 @@ setup and Wake live in the
 | **Directional Pad** | Up, Left, Right, and Down around Enter. |
 | **Enter** | Confirm the focused TV item; use Enter rather than Select or OK for this action. |
 | **Back**, **Home** | TV navigation actions. |
-| **Play/Pause** | The new visual remote face. It currently sends Samsung KEY_PLAY. Pause behavior is unverified, so do not describe it as a confirmed toggle. |
+| **Play/Pause** | The visual remote face that sends Samsung `KEY_PLAY` when playback is unknown or the app last requested pause, and `KEY_PAUSE` after a confirmed Play write. A selected or reconnected TV starts unknown because the remote channel does not report playback state. |
 | **Mute**, **Volume Down**, **Volume Up** | Mute toggle and step volume requests. There is no exact-volume slider. |
 | **Request outcome** | Whether a command was rejected, pending, sent, failed, or uncertain. It does not itself describe the TV's resulting state. |
 | **Observed TV state** | A power, source, mute, or volume reading actually reported by the TV. Show freshness when relevant. |

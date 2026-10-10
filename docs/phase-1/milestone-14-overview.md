@@ -39,9 +39,10 @@ edge-to-edge hit areas, and interaction states, not an asset to copy.
   available. The visual remote is a single embedded image with tested pointer
   regions. Wake, Try again, and Cancel retain visible text and bitmaps in
   Power View. Enabled buttons and picture regions respond to pointer hover.
-- Add the owner's Play/Pause face to the visual remote.
-  For now it sends Samsung `KEY_PLAY`; its pause behavior has not been verified
-  on the target TV and must not be presented as a confirmed toggle.
+- Add the owner's Play/Pause face to the visual remote. It sends Samsung
+  `KEY_PLAY` when playback is unknown or inferred paused and `KEY_PAUSE` when
+  inferred playing. The remote channel does not report independent playback
+  state.
 - Group the Discovery page into TV List, Discovery and Pairing, Connection
   recovery, and Guidance cards. Keep Wake configuration and its Guidance on
   the separate Wake on LAN page. Retain discovery, probe, pairing, re-pair,
@@ -82,7 +83,10 @@ edge-to-edge hit areas, and interaction states, not an asset to copy.
   bundle builds and verifies.
 - [ ] Native macOS review covers resting, hovered, selected, focused, and
   disabled buttons in all views at the minimum window size and Retina scale.
-- [ ] Play/Pause behavior is checked on a live TV before pause is claimed.
+- [x] Play/Pause resolves to `KEY_PLAY` from unknown or inferred paused state
+  and `KEY_PAUSE` from inferred playing state after a confirmed write.
+- [ ] Live-TV playback behavior is checked before the app claims observed
+  player state.
 
 ## References
 

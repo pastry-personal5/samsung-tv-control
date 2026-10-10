@@ -14,5 +14,6 @@ pub mod wake_transport;
 
 pub use control_state::{
     ConnectionState, ControlState, ControlStatus, LifecycleUpdateResult, PairingState,
+    PlaybackState,
 };
 pub use remote_request::{RemoteActionOutcome, RemoteActionRejection, SendRemoteAction};

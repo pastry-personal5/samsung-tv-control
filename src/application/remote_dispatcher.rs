@@ -97,6 +97,31 @@ impl RemoteDispatcher {
             .map(|item| item.id)
     }
 
+    /// Returns the action currently handed to the transport for this request.
+    pub fn in_flight_action(&self, id: RequestId) -> Option<crate::domain::RemoteAction> {
+        self.in_flight
+            .as_ref()
+            .filter(|item| item.id == id)
+            .map(|item| item.request.action())
+    }
+
+    /// Replaces a queued visual intent with the concrete action to write.
+    pub fn resolve_in_flight_action(
+        &mut self,
+        id: RequestId,
+        action: crate::domain::RemoteAction,
+    ) -> bool {
+        let Some(item) = self.in_flight.as_mut().filter(|item| item.id == id) else {
+            return false;
+        };
+        item.request = SendRemoteAction::new(
+            item.request.target(),
+            item.request.selection_generation(),
+            action,
+        );
+        true
+    }
+
     pub fn admit(&mut self, state: &ControlState, request: SendRemoteAction) -> Admission {
         if let RemoteActionOutcome::Rejected { reason, .. } =
             state.evaluate_remote_action(request.clone())
@@ -264,6 +289,25 @@ mod tests {
             dispatcher.terminal_results().front().unwrap().outcome,
             TerminalOutcome::NotSent(NotSentReason::Policy(RemoteActionRejection::WrongTarget))
         );
+    }
+
+    #[test]
+    fn resolves_only_the_current_transport_request() {
+        let state = connected_state();
+        let mut dispatcher = RemoteDispatcher::new(2, 2);
+        let Admission::Queued(id) =
+            dispatcher.admit(&state, request(&state, RemoteAction::PlayPause))
+        else {
+            panic!("request was not queued")
+        };
+        assert_eq!(
+            dispatcher.start_next(&state).unwrap().request.action(),
+            RemoteAction::PlayPause
+        );
+        assert!(dispatcher.resolve_in_flight_action(id, RemoteAction::Play));
+        assert_eq!(dispatcher.in_flight_action(id), Some(RemoteAction::Play));
+        assert!(!dispatcher
+            .resolve_in_flight_action(RequestId::from_test_value(99), RemoteAction::Pause));
     }
 
     #[test]

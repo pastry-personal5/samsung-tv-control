@@ -10,7 +10,12 @@ pub enum RemoteAction {
     Enter,
     Back,
     Home,
+    /// A visual-remote intent resolved to Play or Pause by the application.
     PlayPause,
+    /// Start playback on the TV.
+    Play,
+    /// Pause playback on the TV.
+    Pause,
     Mute,
     VolumeUp,
     VolumeDown,
@@ -26,6 +31,22 @@ impl RemoteAction {
         Self::Back,
         Self::Home,
         Self::PlayPause,
+        Self::Mute,
+        Self::VolumeUp,
+        Self::VolumeDown,
+    ];
+
+    /// Actions that can be encoded as Samsung remote keys.
+    pub const ENCODED_ACTIONS: [Self; 12] = [
+        Self::Up,
+        Self::Down,
+        Self::Left,
+        Self::Right,
+        Self::Enter,
+        Self::Back,
+        Self::Home,
+        Self::Play,
+        Self::Pause,
         Self::Mute,
         Self::VolumeUp,
         Self::VolumeDown,

@@ -8,8 +8,9 @@ P1-M14 primarily refines presentation hierarchy. It consumes the existing
 typed control state, setup facts, messages, and P1-M13 wake snapshot; it does
 not add socket, persistence, or coordinator policy to Iced.
 The owner later selected a bundled visual remote for Remote View and added one
-Play/Pause intent. The existing Samsung codec sends `KEY_PLAY` for that intent;
-pause behavior awaits a live-TV check.
+Play/Pause intent. The application resolves that intent to `KEY_PLAY` when
+playback is unknown or inferred paused, and to `KEY_PAUSE` when playback is
+inferred playing after a confirmed write.
 
 ### Main Sidebar
 
@@ -98,8 +99,8 @@ button faces become bitmaps; document and test any intentional label change.
 - Run the contributor-guide Cargo formatting, Clippy, and test gates.
 
 Full native review of Settings, placeholder views, focus, and all Sidebar
-states is still needed. A socket write of `KEY_PLAY` does not prove Play/Pause
-behavior; that action needs a live-TV check before pause can be claimed.
+states is still needed. A socket write of `KEY_PLAY` or `KEY_PAUSE` does not
+prove the resulting player state; that behavior needs a live-TV check.
 The signed bundle's Remote and Power Views were inspected at the minimum
 window size, including scrolling without Messages overlap. The macOS
 accessibility tree exposed only the window, so individual screen-reader labels

@@ -15,6 +15,7 @@ pub enum CodecError {
     OversizedEvent,
     MalformedEvent,
     InvalidToken,
+    UnresolvedPlaybackAction,
 }
 
 /// Encodes one Samsung remote Click frame; UI and application code never own key strings.
@@ -28,8 +29,9 @@ pub fn encode_click(action: RemoteAction) -> Result<String, CodecError> {
         RemoteAction::Enter => "KEY_ENTER",
         RemoteAction::Back => "KEY_RETURN",
         RemoteAction::Home => "KEY_HOME",
-        // The WebSocket key set exposes Play, but no documented combined Play/Pause key.
-        RemoteAction::PlayPause => "KEY_PLAY",
+        RemoteAction::PlayPause => return Err(CodecError::UnresolvedPlaybackAction),
+        RemoteAction::Play => "KEY_PLAY",
+        RemoteAction::Pause => "KEY_PAUSE",
         RemoteAction::Mute => "KEY_MUTE",
         RemoteAction::VolumeUp => "KEY_VOLUP",
         RemoteAction::VolumeDown => "KEY_VOLDOWN",
@@ -86,11 +88,12 @@ mod tests {
             "KEY_RETURN",
             "KEY_HOME",
             "KEY_PLAY",
+            "KEY_PAUSE",
             "KEY_MUTE",
             "KEY_VOLUP",
             "KEY_VOLDOWN",
         ];
-        for (action, key) in RemoteAction::LIVE_ACTIONS.into_iter().zip(expected) {
+        for (action, key) in RemoteAction::ENCODED_ACTIONS.into_iter().zip(expected) {
             let frame = encode_click(action).unwrap();
             let json: Value = serde_json::from_str(&frame).unwrap();
             assert_eq!(json["method"], "ms.remote.control");
@@ -102,6 +105,10 @@ mod tests {
         let frame = encode_click(RemoteAction::PowerToggle).unwrap();
         let json: Value = serde_json::from_str(&frame).unwrap();
         assert_eq!(json["params"]["DataOfCmd"], "KEY_POWER");
+        assert_eq!(
+            encode_click(RemoteAction::PlayPause),
+            Err(CodecError::UnresolvedPlaybackAction)
+        );
     }
 
     #[test]

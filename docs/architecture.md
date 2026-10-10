@@ -33,8 +33,12 @@ token. Selection, pairing, and a live connection are separate facts.
 Wake uses a selected TV's configured wired or Wi-Fi MAC address. It sends one
 local-route magic packet, then waits for a usable paired remote connection.
 Packet transmission does not prove delivery or visible panel power. A live
-paired Power Toggle sends `KEY_POWER`; the visual remote's Play/Pause currently
-sends `KEY_PLAY`, with pause behavior awaiting hardware verification.
+paired Power Toggle sends `KEY_POWER`. The visual remote's Play/Pause intent
+resolves to `KEY_PLAY` when playback is unknown or the app last requested a
+pause, and to `KEY_PAUSE` after a confirmed Play write. The Samsung remote
+channel does not report independent playback state, so a selected or
+reconnected TV starts unknown. A socket write records only the app's inferred
+next state; it does not observe the player.
 
 The Iced presentation maps pointer and keyboard input to typed requests and
 projects application results into the current [UX specification](ux-gui.md).

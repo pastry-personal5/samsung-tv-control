@@ -42,8 +42,11 @@ currently does not expose the individual controls; complete screen-reader and
 focus review remains open. Do not claim accessible control names are verified
 until that review passes.
 
-Play/Pause sends Samsung KEY_PLAY for now. Its pause behavior on the target TV
-has not been verified, and the interface must not claim a confirmed toggle.
+Play/Pause sends Samsung `KEY_PLAY` when playback is unknown or the app last
+requested pause, and `KEY_PAUSE` after a confirmed Play write. A selected or
+reconnected TV starts unknown because the remote channel does not report
+playback state. A socket write updates only this inferred state and does not
+confirm the resulting player state.
 There is no exact-volume slider.
 
 With a live paired session, Power Toggle sends the TV's power-toggle key and

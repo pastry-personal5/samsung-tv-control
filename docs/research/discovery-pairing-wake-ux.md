@@ -27,9 +27,10 @@ decisions and implementation work; they are not current behavior.
   automatically. Wake sends one packet and waits for paired remote readiness.
   Disconnected Remote power first probes the trusted connection, then Wakes only
   if unreachable and configured. A physical screen-on state is not observed.
-- The visual remote has no separate keyboard panel. Play/Pause currently sends
-  KEY_PLAY and its pause effect remains unverified. Neither issue should be
-  folded into the setup flow.
+- The visual remote has no separate keyboard panel. Play/Pause sends `KEY_PLAY`
+  when playback is unknown or inferred paused and `KEY_PAUSE` when inferred
+  playing. The remote channel does not observe the TV's playback state. Neither
+  issue should be folded into the setup flow.
 
 ## Research basis and boundaries
 
